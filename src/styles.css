@@ -541,6 +541,7 @@ button:disabled {
 .sponsor-node h3,
 .group-tile h3,
 .doc-row h3,
+.decision-row h3,
 .lineage-row h3,
 .event-card h3,
 .group-manager h3,
@@ -554,6 +555,7 @@ button:disabled {
 .sponsor-node p,
 .group-tile p,
 .doc-row p,
+.decision-row p,
 .lineage-row p,
 .event-card p,
 .group-manager p,
@@ -610,6 +612,7 @@ button:disabled {
 
 .group-tile footer,
 .doc-row footer,
+.decision-row footer,
 .event-card footer {
   display: flex;
   flex-wrap: wrap;
@@ -930,7 +933,15 @@ button:disabled {
   border-color: #e5c86c;
 }
 
+.media-safety-row {
+  display: grid;
+  grid-template-columns: auto 160px;
+  gap: 8px;
+  align-items: center;
+}
+
 .message-image {
+  position: relative;
   display: grid;
   gap: 7px;
   margin: 10px 0 8px;
@@ -942,6 +953,19 @@ button:disabled {
   object-fit: contain;
   background: #101514;
   border-radius: 8px;
+}
+
+.image-watermark {
+  position: absolute;
+  right: 9px;
+  bottom: 28px;
+  padding: 3px 7px;
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(15, 20, 20, 0.5);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  pointer-events: none;
 }
 
 .message-image figcaption,
@@ -972,6 +996,16 @@ button:disabled {
   color: var(--teal);
   background: #edf6f2;
   border-color: #b9d9cf;
+}
+
+.consent-envelope {
+  display: grid;
+  gap: 3px;
+}
+
+.consent-envelope small {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .primary-button,
@@ -1033,6 +1067,32 @@ button:disabled {
 
 .event-actions .secondary-button {
   white-space: nowrap;
+}
+
+.event-boundaries,
+.checkin-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.event-boundaries span,
+.checkin-summary span {
+  min-height: 24px;
+  padding: 4px 8px;
+  color: #3d484b;
+  background: #f5f7f2;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.checkin-summary span {
+  color: #124c45;
+  background: #edf8f3;
+  border-color: #b9d9cf;
 }
 
 .attendee-row,
@@ -1162,6 +1222,54 @@ button:disabled {
   box-shadow: inset 4px 0 0 var(--teal);
 }
 
+.decision-list {
+  display: grid;
+  gap: 10px;
+}
+
+.decision-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 15px;
+  background: #fffdf8;
+  border: 1px solid #eadfbf;
+  border-radius: 8px;
+}
+
+.decision-row.selected {
+  border-color: #d0b15f;
+  box-shadow: inset 4px 0 0 #b38a2e;
+}
+
+.decision-row blockquote {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  color: #3f3b2f;
+  background: #fff8e6;
+  border-left: 3px solid #d0b15f;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.vote-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.vote-row .secondary-button {
+  min-height: 28px;
+  padding: 0 9px;
+}
+
+.memory-forms {
+  display: grid;
+  gap: 10px;
+}
+
 .doc-code {
   min-height: 26px;
   margin-bottom: 10px;
@@ -1197,6 +1305,10 @@ button:disabled {
 .groups-layout,
 .entrances-layout {
   grid-template-columns: 360px minmax(0, 1fr);
+}
+
+.entrances-layout {
+  grid-template-columns: 340px minmax(0, 0.9fr) minmax(360px, 1.1fr);
 }
 
 .group-manager header {
@@ -1255,6 +1367,61 @@ button:disabled {
 
 .sponsor-map {
   align-self: start;
+}
+
+.consent-board {
+  align-self: start;
+}
+
+.consent-editor {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.consent-card-list {
+  display: grid;
+  gap: 8px;
+}
+
+.consent-card {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.consent-card header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.consent-card h3,
+.consent-card p,
+.consent-card dl,
+.consent-card dd {
+  margin: 0;
+}
+
+.consent-card dl {
+  display: grid;
+  gap: 6px;
+}
+
+.consent-card dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.consent-card dd {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 @media (max-width: 1050px) {
@@ -2346,6 +2513,10 @@ button:disabled {
   .groups-layout,
   .entrances-layout {
     grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .entrances-layout {
+    grid-template-columns: 260px minmax(0, 0.85fr) minmax(300px, 1.15fr);
   }
 
   .group-manager header {

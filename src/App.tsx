@@ -2,6 +2,7 @@ import {
   BookOpenText,
   CalendarDays,
   Check,
+  ClipboardCheck,
   ChevronRight,
   CircleDot,
   Copy,
@@ -9,8 +10,10 @@ import {
   EyeOff,
   FilePlus2,
   HandHeart,
+  HeartHandshake,
   Image as ImageIcon,
   Link2,
+  LockKeyhole,
   MessageCircle,
   Network,
   Plus,
@@ -18,8 +21,10 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Timer,
   Trash2,
   Users,
+  Vote,
   Wifi,
   WifiOff,
   X,
@@ -31,6 +36,12 @@ type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
 type GroupPrivacy = "aberto" | "convite" | "secreto";
 type NavKey = "hoje" | "chat" | "eventos" | "docs" | "grupos" | "entradas";
+type EventVibe = "social" | "discussão" | "festa" | "íntimo" | "público";
+type PhotoPolicy = "sem fotos" | "perguntar primeiro" | "zonas comuns ok";
+type DecisionStatus = "rascunho" | "aberta" | "decidida";
+type DecisionVoteValue = "sim" | "não" | "abstenção" | "bloqueio";
+type CheckInMood = "bem" | "misto" | "atenção";
+type CheckInVisibility = "admins" | "sponsor" | "comunidade";
 
 type Member = {
   id: string;
@@ -41,6 +52,11 @@ type Member = {
   role: MemberRole;
   groupIds: string[];
   status: MemberStatus;
+  consentAvailableFor: string;
+  consentLimits: string;
+  mediaPreference: string;
+  relationshipContext: string;
+  eventComfort: string;
 };
 
 type Group = {
@@ -61,6 +77,10 @@ type EventItem = {
   capacity: number;
   createdBy: string | null;
   attendeeIds: string[];
+  vibe: EventVibe;
+  photoPolicy: PhotoPolicy;
+  boundaryNotes: string;
+  aftercarePrompt: string;
 };
 
 type CommunityDoc = {
@@ -87,6 +107,8 @@ type ChatMessage = {
   imageMimeType?: string;
   imageViewOnce: boolean;
   imageOpenedBy: string[];
+  imageConsentRequired: boolean;
+  imageExpiresAt?: string;
 };
 
 type CommunityState = {
@@ -94,7 +116,45 @@ type CommunityState = {
   groups: Group[];
   events: EventItem[];
   docs: CommunityDoc[];
+  decisions: DecisionRecord[];
+  eventCheckIns: EventCheckIn[];
   messages: ChatMessage[];
+};
+
+type DecisionVote = {
+  memberId: string;
+  value: DecisionVoteValue;
+  note: string;
+};
+
+type DecisionRecord = {
+  id: string;
+  code: string;
+  title: string;
+  summary: string;
+  outcome: string;
+  status: DecisionStatus;
+  createdBy: string | null;
+  createdAt: string;
+  votes: DecisionVote[];
+};
+
+type EventCheckIn = {
+  id: string;
+  eventId: string;
+  memberId: string;
+  mood: CheckInMood;
+  note: string;
+  visibility: CheckInVisibility;
+  createdAt: string;
+};
+
+type CitationTarget = {
+  id: string;
+  code: string;
+  title: string;
+  tags: string[];
+  kind: string;
 };
 
 type InviteCode = {
@@ -112,6 +172,8 @@ type MessageInput = {
   citationCode?: string;
   imageFile?: File | null;
   imageViewOnce?: boolean;
+  imageConsentRequired?: boolean;
+  imageExpiresInHours?: number;
 };
 
 type ProfileRow = {
@@ -122,6 +184,11 @@ type ProfileRow = {
   sponsor_id: string | null;
   role: MemberRole;
   status: MemberStatus;
+  consent_available_for: string | null;
+  consent_limits: string | null;
+  media_preference: string | null;
+  relationship_context: string | null;
+  event_comfort: string | null;
 };
 
 type GroupRow = {
@@ -146,6 +213,10 @@ type EventRow = {
   group_id: string;
   capacity: number;
   created_by: string | null;
+  vibe: EventVibe | null;
+  photo_policy: PhotoPolicy | null;
+  boundary_notes: string | null;
+  aftercare_prompt: string | null;
 };
 
 type EventAttendeeRow = {
@@ -176,6 +247,30 @@ type MessageRow = {
   image_mime_type: string | null;
   image_view_once: boolean | null;
   image_opened_by: string[] | null;
+  image_consent_required: boolean | null;
+  image_expires_at: string | null;
+};
+
+type DecisionRow = {
+  id: string;
+  code: string;
+  title: string;
+  summary: string;
+  outcome: string;
+  status: DecisionStatus;
+  created_by: string | null;
+  created_at: string;
+  votes: DecisionVote[] | null;
+};
+
+type EventCheckInRow = {
+  id: string;
+  event_id: string;
+  member_id: string;
+  mood: CheckInMood;
+  note: string | null;
+  visibility: CheckInVisibility;
+  created_at: string;
 };
 
 type InviteRow = {
@@ -207,6 +302,11 @@ const seedState: CommunityState = {
       role: "admin",
       groupIds: ["g_geral", "g_eventos", "g_cuidados"],
       status: "online",
+      consentAvailableFor: "conversas diretas, organização de eventos, mediação",
+      consentLimits: "não partilhar prints; perguntar antes de toque físico",
+      mediaPreference: "nudes só em envelope privado e com contexto explícito",
+      relationshipContext: "poliam, com acordos vivos",
+      eventComfort: "prefere encontros com política de fotos clara",
     },
     {
       id: "m_ana",
@@ -217,6 +317,11 @@ const seedState: CommunityState = {
       role: "membro",
       groupIds: ["g_geral", "g_eventos"],
       status: "online",
+      consentAvailableFor: "cafés, dança, conversas sobre relações",
+      consentLimits: "sem mensagens sexuais sem convite claro",
+      mediaPreference: "fotos normais ok; íntimas apenas ver uma vez",
+      relationshipContext: "solo poly, dating devagar",
+      eventComfort: "gosta de eventos newcomer-friendly",
     },
     {
       id: "m_miguel",
@@ -227,6 +332,11 @@ const seedState: CommunityState = {
       role: "membro",
       groupIds: ["g_geral", "g_cuidados"],
       status: "offline",
+      consentAvailableFor: "conversas de cuidado, facilitação, logística",
+      consentLimits: "não gosta de flirt em grupos públicos",
+      mediaPreference: "não receber nudes sem pergunta prévia",
+      relationshipContext: "relação aberta com acordos fixos",
+      eventComfort: "prefere eventos pequenos e sem fotografia",
     },
     {
       id: "m_lia",
@@ -237,6 +347,11 @@ const seedState: CommunityState = {
       role: "nova pessoa",
       groupIds: ["g_geral"],
       status: "online",
+      consentAvailableFor: "conhecer pessoas em contexto de grupo",
+      consentLimits: "quer ir devagar; sem convites privados no primeiro contacto",
+      mediaPreference: "sem media íntima por agora",
+      relationshipContext: "a explorar não-monogamia",
+      eventComfort: "precisa de anfitriã/o visível no início",
     },
   ],
   groups: [
@@ -275,6 +390,10 @@ const seedState: CommunityState = {
       capacity: 12,
       createdBy: "m_di",
       attendeeIds: ["m_di", "m_ana", "m_lia"],
+      vibe: "social",
+      photoPolicy: "perguntar primeiro",
+      boundaryNotes: "Ronda inicial de nomes/pronomes. Sem fotos sem consentimento explícito.",
+      aftercarePrompt: "Enviar check-in breve no dia seguinte a novas pessoas.",
     },
     {
       id: "e_2",
@@ -285,6 +404,10 @@ const seedState: CommunityState = {
       capacity: 24,
       createdBy: "m_ana",
       attendeeIds: ["m_di", "m_miguel"],
+      vibe: "discussão",
+      photoPolicy: "sem fotos",
+      boundaryNotes: "Falar de acordos em formato de decisão, não debate infinito.",
+      aftercarePrompt: "Recolher sinais de desconforto e propostas de melhoria.",
     },
   ],
   docs: [
@@ -319,6 +442,34 @@ const seedState: CommunityState = {
       tags: ["grupos", "moderação"],
     },
   ],
+  decisions: [
+    {
+      id: "dec_1",
+      code: "DEC-001",
+      title: "Política de fotografias em eventos",
+      summary: "Fotos de grupo só com consentimento explícito e indicação clara de onde serão partilhadas.",
+      outcome: "Sem fotos em eventos íntimos; em eventos sociais, perguntar primeiro e aceitar um não sem conversa.",
+      status: "decidida",
+      createdBy: "m_di",
+      createdAt: "2026-06-17T18:30:00",
+      votes: [
+        { memberId: "m_di", value: "sim", note: "protege confiança" },
+        { memberId: "m_ana", value: "sim", note: "bom para acolhimento" },
+        { memberId: "m_miguel", value: "sim", note: "essencial" },
+      ],
+    },
+  ],
+  eventCheckIns: [
+    {
+      id: "chk_1",
+      eventId: "e_1",
+      memberId: "m_lia",
+      mood: "bem",
+      note: "Gostei de saber quem era anfitriã/o logo no início.",
+      visibility: "admins",
+      createdAt: "2026-06-23T11:00:00",
+    },
+  ],
   messages: [
     {
       id: "msg_1",
@@ -330,6 +481,7 @@ const seedState: CommunityState = {
       citationCode: "DOC-001",
       imageViewOnce: false,
       imageOpenedBy: [],
+      imageConsentRequired: false,
     },
   ],
 };
@@ -362,6 +514,8 @@ function App() {
       eventsResult,
       attendeesResult,
       docsResult,
+      decisionsResult,
+      checkInsResult,
       messagesResult,
       invitesResult,
     ] = await Promise.all([
@@ -371,6 +525,8 @@ function App() {
       supabase.from("events").select("*").order("starts_at", { ascending: true }),
       supabase.from("event_attendees").select("*"),
       supabase.from("docs").select("*").order("updated_at", { ascending: false }),
+      supabase.from("decisions").select("*").order("created_at", { ascending: false }),
+      supabase.from("event_checkins").select("*").order("created_at", { ascending: false }),
       supabase.from("messages").select("*").order("created_at", { ascending: true }).limit(200),
       supabase.from("invite_codes").select("*").order("created_at", { ascending: false }),
     ]);
@@ -382,6 +538,8 @@ function App() {
       eventsResult.error,
       attendeesResult.error,
       docsResult.error,
+      decisionsResult.error,
+      checkInsResult.error,
       messagesResult.error,
       invitesResult.error,
     ].find(Boolean);
@@ -415,6 +573,11 @@ function App() {
       role: row.role,
       groupIds: groupIdsByMember.get(row.id) ?? [],
       status: row.status,
+      consentAvailableFor: row.consent_available_for ?? "",
+      consentLimits: row.consent_limits ?? "",
+      mediaPreference: row.media_preference ?? "",
+      relationshipContext: row.relationship_context ?? "",
+      eventComfort: row.event_comfort ?? "",
     }));
 
     const groups = ((groupsResult.data ?? []) as GroupRow[]).map((row) => ({
@@ -435,6 +598,10 @@ function App() {
       capacity: row.capacity,
       createdBy: row.created_by,
       attendeeIds: attendeeIdsByEvent.get(row.id) ?? [],
+      vibe: row.vibe ?? "social",
+      photoPolicy: row.photo_policy ?? "perguntar primeiro",
+      boundaryNotes: row.boundary_notes ?? "",
+      aftercarePrompt: row.aftercare_prompt ?? "",
     }));
 
     const docs = ((docsResult.data ?? []) as DocRow[]).map((row) => ({
@@ -445,6 +612,28 @@ function App() {
       ownerId: row.owner_id,
       updatedAt: row.updated_at,
       tags: row.tags ?? [],
+    }));
+
+    const decisions = ((decisionsResult.data ?? []) as DecisionRow[]).map((row) => ({
+      id: row.id,
+      code: row.code,
+      title: row.title,
+      summary: row.summary,
+      outcome: row.outcome,
+      status: row.status,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      votes: row.votes ?? [],
+    }));
+
+    const eventCheckIns = ((checkInsResult.data ?? []) as EventCheckInRow[]).map((row) => ({
+      id: row.id,
+      eventId: row.event_id,
+      memberId: row.member_id,
+      mood: row.mood,
+      note: row.note ?? "",
+      visibility: row.visibility,
+      createdAt: row.created_at,
     }));
 
     const messages = await Promise.all(
@@ -475,6 +664,8 @@ function App() {
           imageMimeType: row.image_mime_type ?? undefined,
           imageViewOnce,
           imageOpenedBy,
+          imageConsentRequired: row.image_consent_required ?? false,
+          imageExpiresAt: row.image_expires_at ?? undefined,
         };
       }),
     );
@@ -489,7 +680,7 @@ function App() {
       createdAt: row.created_at,
     }));
 
-    setState({ members, groups, events, docs, messages });
+    setState({ members, groups, events, docs, decisions, eventCheckIns, messages });
     setInviteCodes(invites);
     setSyncStatus("connected");
     setSyncMessage("");
@@ -531,6 +722,11 @@ function App() {
       role: row.role,
       groupIds: [],
       status: row.status,
+      consentAvailableFor: row.consent_available_for ?? "",
+      consentLimits: row.consent_limits ?? "",
+      mediaPreference: row.media_preference ?? "",
+      relationshipContext: row.relationship_context ?? "",
+      eventComfort: row.event_comfort ?? "",
     };
     setProfile(member);
     setCurrentMemberId(member.id);
@@ -619,7 +815,11 @@ function App() {
     if (!state.groups.some((group) => group.id === activeGroupId)) {
       setActiveGroupId(state.groups[0]?.id ?? "");
     }
-    if (selectedCitation && !state.docs.some((doc) => doc.code === selectedCitation)) {
+    if (
+      selectedCitation &&
+      !state.docs.some((doc) => doc.code === selectedCitation) &&
+      !state.decisions.some((decision) => decision.code === selectedCitation)
+    ) {
       setSelectedCitation(state.docs[0]?.code ?? "");
     }
   }, [
@@ -627,6 +827,7 @@ function App() {
     currentMemberId,
     profile,
     selectedCitation,
+    state.decisions,
     state.docs,
     state.groups,
     state.members,
@@ -645,6 +846,10 @@ function App() {
     () => new Map(state.docs.map((doc) => [doc.code, doc])),
     [state.docs],
   );
+  const decisionsByCode = useMemo(
+    () => new Map(state.decisions.map((decision) => [decision.code, decision])),
+    [state.decisions],
+  );
 
   const activeGroup = groupById.get(activeGroupId) ?? state.groups[0];
   const currentMember = memberById.get(currentMemberId) ?? state.members[0];
@@ -658,6 +863,13 @@ function App() {
     const term = search.trim().toLowerCase();
     if (!term) return true;
     return [doc.title, doc.summary, doc.code, ...doc.tags].some((value) =>
+      value.toLowerCase().includes(term),
+    );
+  });
+  const filteredDecisions = state.decisions.filter((decision) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return [decision.code, decision.title, decision.summary, decision.outcome, decision.status].some((value) =>
       value.toLowerCase().includes(term),
     );
   });
@@ -729,6 +941,11 @@ function App() {
     const citationCode = input.citationCode?.trim() || undefined;
     const imageFile = input.imageFile ?? null;
     const hasImage = Boolean(imageFile);
+    const imageConsentRequired = hasImage ? input.imageConsentRequired ?? Boolean(input.imageViewOnce) : false;
+    const imageExpiresAt =
+      hasImage && input.imageExpiresInHours
+        ? new Date(Date.now() + input.imageExpiresInHours * 60 * 60 * 1000).toISOString()
+        : undefined;
     if (!trimmed && !imageFile && !citationCode) return false;
 
     if (imageFile && !imageFile.type.startsWith("image/")) {
@@ -779,6 +996,8 @@ function App() {
         image_name: imageFile?.name ?? null,
         image_mime_type: imageFile?.type ?? null,
         image_view_once: Boolean(input.imageViewOnce),
+        image_consent_required: imageConsentRequired,
+        image_expires_at: imageExpiresAt ?? null,
       });
       if (error) {
         setSyncStatus("error");
@@ -809,6 +1028,8 @@ function App() {
           imageMimeType: imageFile?.type,
           imageViewOnce: Boolean(input.imageViewOnce),
           imageOpenedBy: [],
+          imageConsentRequired,
+          imageExpiresAt,
         },
       ],
     }));
@@ -872,6 +1093,11 @@ function App() {
       role: "nova pessoa",
       groupIds: input.groupIds.length ? input.groupIds : ["g_geral"],
       status: "offline",
+      consentAvailableFor: "conhecer pessoas em contexto de grupo",
+      consentLimits: "",
+      mediaPreference: "sem media íntima por agora",
+      relationshipContext: "",
+      eventComfort: "",
     };
     updateState((current) => ({ ...current, members: [...current.members, member] }));
     showNotice("Entrada vinculada.");
@@ -883,6 +1109,10 @@ function App() {
     place: string;
     groupId: string;
     capacity: number;
+    vibe: EventVibe;
+    photoPolicy: PhotoPolicy;
+    boundaryNotes: string;
+    aftercarePrompt: string;
   }) {
     if (usingBackend && supabase && profile) {
       const eventId = crypto.randomUUID();
@@ -894,6 +1124,10 @@ function App() {
         place: input.place.trim(),
         group_id: input.groupId,
         capacity: input.capacity,
+        vibe: input.vibe,
+        photo_policy: input.photoPolicy,
+        boundary_notes: input.boundaryNotes.trim(),
+        aftercare_prompt: input.aftercarePrompt.trim(),
         created_by: profile.id,
       });
       if (error) {
@@ -916,6 +1150,10 @@ function App() {
       capacity: input.capacity,
       createdBy: currentMember.id,
       attendeeIds: [currentMember.id],
+      vibe: input.vibe,
+      photoPolicy: input.photoPolicy,
+      boundaryNotes: input.boundaryNotes.trim(),
+      aftercarePrompt: input.aftercarePrompt.trim(),
     };
     updateState((current) => ({ ...current, events: [...current.events, event] }));
     showNotice("Evento criado.");
@@ -1071,6 +1309,221 @@ function App() {
       setSelectedCitation("");
     }
     showNotice(`${doc.code} eliminado.`);
+  }
+
+  async function addDecision(input: {
+    title: string;
+    summary: string;
+    outcome: string;
+    status: DecisionStatus;
+  }) {
+    const nextNumber = state.decisions.length + 1;
+    const code = `DEC-${String(nextNumber).padStart(3, "0")}`;
+    const decision: DecisionRecord = {
+      id: crypto.randomUUID(),
+      code,
+      title: input.title.trim(),
+      summary: input.summary.trim(),
+      outcome: input.outcome.trim(),
+      status: input.status,
+      createdBy: currentMember.id,
+      createdAt: new Date().toISOString(),
+      votes: [],
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("decisions").insert({
+        id: decision.id,
+        code,
+        title: decision.title,
+        summary: decision.summary,
+        outcome: decision.outcome,
+        status: decision.status,
+        created_by: profile.id,
+        votes: decision.votes,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      setSelectedCitation(code);
+      await fetchBackendData();
+      showNotice(`${code} guardada e citável.`);
+      return true;
+    }
+
+    updateState((current) => ({ ...current, decisions: [decision, ...current.decisions] }));
+    setSelectedCitation(code);
+    showNotice(`${code} guardada e citável.`);
+    return true;
+  }
+
+  async function voteDecision(decisionId: string, vote: DecisionVote) {
+    const decision = state.decisions.find((candidate) => candidate.id === decisionId);
+    if (!decision) return;
+    const nextVotes = [
+      ...decision.votes.filter((candidate) => candidate.memberId !== vote.memberId),
+      vote,
+    ];
+
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("decisions").update({ votes: nextVotes }).eq("id", decisionId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Voto registado.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      decisions: current.decisions.map((candidate) =>
+        candidate.id === decisionId ? { ...candidate, votes: nextVotes } : candidate,
+      ),
+    }));
+    showNotice("Voto registado.");
+  }
+
+  async function deleteDecision(decisionId: string) {
+    const decision = state.decisions.find((candidate) => candidate.id === decisionId);
+    if (!decision) return;
+    const canDelete = currentMember.role === "admin" || decision.createdBy === currentMember.id;
+    if (!canDelete) {
+      showNotice("Só admins ou quem criou a decisão podem eliminar.");
+      return;
+    }
+
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("decisions").delete().eq("id", decisionId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice(`${decision.code} eliminada.`);
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      decisions: current.decisions.filter((candidate) => candidate.id !== decisionId),
+      messages: current.messages.map((message) =>
+        message.citationCode === decision.code ? { ...message, citationCode: undefined } : message,
+      ),
+    }));
+    showNotice(`${decision.code} eliminada.`);
+  }
+
+  async function updateConsentCard(input: {
+    memberId: string;
+    consentAvailableFor: string;
+    consentLimits: string;
+    mediaPreference: string;
+    relationshipContext: string;
+    eventComfort: string;
+  }) {
+    const canEdit = currentMember.role === "admin" || currentMember.id === input.memberId;
+    if (!canEdit) {
+      showNotice("Só podes editar o teu cartão, ou fazê-lo como admin.");
+      return false;
+    }
+
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          consent_available_for: input.consentAvailableFor.trim(),
+          consent_limits: input.consentLimits.trim(),
+          media_preference: input.mediaPreference.trim(),
+          relationship_context: input.relationshipContext.trim(),
+          event_comfort: input.eventComfort.trim(),
+        })
+        .eq("id", input.memberId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Cartão de consentimento atualizado.");
+      return true;
+    }
+
+    updateState((current) => ({
+      ...current,
+      members: current.members.map((member) =>
+        member.id === input.memberId
+          ? {
+              ...member,
+              consentAvailableFor: input.consentAvailableFor.trim(),
+              consentLimits: input.consentLimits.trim(),
+              mediaPreference: input.mediaPreference.trim(),
+              relationshipContext: input.relationshipContext.trim(),
+              eventComfort: input.eventComfort.trim(),
+            }
+          : member,
+      ),
+    }));
+    showNotice("Cartão de consentimento atualizado.");
+    return true;
+  }
+
+  async function addEventCheckIn(input: {
+    eventId: string;
+    mood: CheckInMood;
+    note: string;
+    visibility: CheckInVisibility;
+  }) {
+    const checkIn: EventCheckIn = {
+      id: crypto.randomUUID(),
+      eventId: input.eventId,
+      memberId: currentMember.id,
+      mood: input.mood,
+      note: input.note.trim(),
+      visibility: input.visibility,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("event_checkins").upsert({
+        id: checkIn.id,
+        event_id: input.eventId,
+        member_id: profile.id,
+        mood: input.mood,
+        note: checkIn.note,
+        visibility: input.visibility,
+      }, { onConflict: "event_id,member_id" });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Check-in guardado.");
+      return true;
+    }
+
+    updateState((current) => ({
+      ...current,
+      eventCheckIns: [
+        checkIn,
+        ...current.eventCheckIns.filter(
+          (candidate) => !(candidate.eventId === input.eventId && candidate.memberId === currentMember.id),
+        ),
+      ],
+    }));
+    showNotice("Check-in guardado.");
+    return true;
   }
 
   async function addGroup(input: {
@@ -1268,7 +1721,7 @@ function App() {
           <NavButton id="hoje" active={activeNav} setActive={setActiveNav} icon={<CircleDot />} label="Hoje" />
           <NavButton id="chat" active={activeNav} setActive={setActiveNav} icon={<MessageCircle />} label="Ao vivo" />
           <NavButton id="eventos" active={activeNav} setActive={setActiveNav} icon={<CalendarDays />} label="Eventos" />
-          <NavButton id="docs" active={activeNav} setActive={setActiveNav} icon={<BookOpenText />} label="Docs" />
+          <NavButton id="docs" active={activeNav} setActive={setActiveNav} icon={<BookOpenText />} label="Memória" />
           <NavButton id="grupos" active={activeNav} setActive={setActiveNav} icon={<Users />} label="Grupos" />
           <NavButton id="entradas" active={activeNav} setActive={setActiveNav} icon={<HandHeart />} label="Entradas" />
         </nav>
@@ -1337,7 +1790,7 @@ function App() {
             members={state.members}
             groups={state.groups}
             events={upcomingEvents}
-            docs={state.docs}
+            decisions={state.decisions}
             memberById={memberById}
             groupById={groupById}
             setActiveNav={setActiveNav}
@@ -1349,11 +1802,13 @@ function App() {
             members={state.members}
             groups={state.groups}
             docs={state.docs}
+            decisions={state.decisions}
             messages={state.messages}
             activeGroupId={activeGroup.id}
             currentMember={currentMember}
             memberById={memberById}
             docsByCode={docsByCode}
+            decisionsByCode={decisionsByCode}
             setActiveGroupId={setActiveGroupId}
             setSelectedCitation={setSelectedCitation}
             sendMessage={sendMessage}
@@ -1368,11 +1823,13 @@ function App() {
         {activeNav === "eventos" && (
           <EventsView
             events={upcomingEvents}
+            eventCheckIns={state.eventCheckIns}
             groups={state.groups}
             currentMember={currentMember}
             memberById={memberById}
             groupById={groupById}
             addEvent={addEvent}
+            addEventCheckIn={addEventCheckIn}
             deleteEvent={deleteEvent}
             toggleRsvp={toggleRsvp}
           />
@@ -1381,6 +1838,7 @@ function App() {
         {activeNav === "docs" && (
           <DocsView
             docs={filteredDocs}
+            decisions={filteredDecisions}
             members={state.members}
             currentMember={currentMember}
             memberById={memberById}
@@ -1389,6 +1847,9 @@ function App() {
             selectedCitation={selectedCitation}
             setSelectedCitation={setSelectedCitation}
             addDoc={addDoc}
+            addDecision={addDecision}
+            voteDecision={voteDecision}
+            deleteDecision={deleteDecision}
             deleteDoc={deleteDoc}
             copyText={copyText}
             showNotice={showNotice}
@@ -1415,6 +1876,7 @@ function App() {
             currentMember={currentMember}
             inviteCodes={inviteCodes}
             createInvite={createInvite}
+            updateConsentCard={updateConsentCard}
             copyText={copyText}
           />
         )}
@@ -1604,7 +2066,7 @@ function Overview({
   members,
   groups,
   events,
-  docs,
+  decisions,
   memberById,
   groupById,
   setActiveNav,
@@ -1612,7 +2074,7 @@ function Overview({
   members: Member[];
   groups: Group[];
   events: EventItem[];
-  docs: CommunityDoc[];
+  decisions: DecisionRecord[];
   memberById: Map<string, Member>;
   groupById: Map<string, Group>;
   setActiveNav: (nav: NavKey) => void;
@@ -1623,7 +2085,7 @@ function Overview({
       <div className="metric-row">
         <Metric icon={<Users />} label="Membros" value={members.length} accent="#176b63" />
         <Metric icon={<CalendarDays />} label="Eventos marcados" value={events.length} accent="#c4493d" />
-        <Metric icon={<BookOpenText />} label="Docs citáveis" value={docs.length} accent="#5457a6" />
+        <Metric icon={<Vote />} label="Decisões" value={decisions.length} accent="#5457a6" />
         <Metric icon={<HandHeart />} label="Novas entradas" value={newMembers.length} accent="#9a5a20" />
       </div>
 
@@ -1704,11 +2166,13 @@ function ChatView({
   members,
   groups,
   docs,
+  decisions,
   messages,
   activeGroupId,
   currentMember,
   memberById,
   docsByCode,
+  decisionsByCode,
   setActiveGroupId,
   setSelectedCitation,
   sendMessage,
@@ -1721,11 +2185,13 @@ function ChatView({
   members: Member[];
   groups: Group[];
   docs: CommunityDoc[];
+  decisions: DecisionRecord[];
   messages: ChatMessage[];
   activeGroupId: string;
   currentMember: Member;
   memberById: Map<string, Member>;
   docsByCode: Map<string, CommunityDoc>;
+  decisionsByCode: Map<string, DecisionRecord>;
   setActiveGroupId: (id: string) => void;
   setSelectedCitation: (code: string) => void;
   sendMessage: (input: MessageInput) => Promise<boolean>;
@@ -1740,6 +2206,8 @@ function ChatView({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [imageViewOnce, setImageViewOnce] = useState(false);
+  const [imageConsentRequired, setImageConsentRequired] = useState(true);
+  const [imageExpiresInHours, setImageExpiresInHours] = useState(24);
   const [revealedImageUrls, setRevealedImageUrls] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
@@ -1751,15 +2219,33 @@ function ChatView({
   });
   const groupMembers = members.filter((member) => member.groupIds.includes(activeGroup.id));
   const onlineCount = groupMembers.filter((member) => member.status === "online").length;
+  const citationTargets = [
+    ...decisions.map((decision) => ({
+      id: decision.id,
+      code: decision.code,
+      title: decision.title,
+      tags: [decision.status],
+      kind: "decisão",
+    })),
+    ...docs.map((doc) => ({
+      id: doc.id,
+      code: doc.code,
+      title: doc.title,
+      tags: doc.tags,
+      kind: "doc",
+    })),
+  ];
   const activeMentionQuery = getActiveMentionQuery(draft);
   const citationSuggestions =
     activeMentionQuery === null
       ? []
-      : docs
-          .filter((doc) => {
+      : citationTargets
+          .filter((target) => {
             const query = activeMentionQuery.toLowerCase();
             if (!query) return true;
-            return [doc.code, doc.title, ...doc.tags].some((value) => value.toLowerCase().includes(query));
+            return [target.code, target.title, target.kind, ...target.tags].some((value) =>
+              value.toLowerCase().includes(query),
+            );
           })
           .slice(0, 5);
 
@@ -1795,14 +2281,16 @@ function ChatView({
   function clearImage() {
     setImageFile(null);
     setImageViewOnce(false);
+    setImageConsentRequired(true);
+    setImageExpiresInHours(24);
   }
 
-  function insertCitationMention(doc: CommunityDoc) {
-    const mention = `@${getDocMentionLabel(doc)}`;
+  function insertCitationMention(target: CitationTarget) {
+    const mention = `@${getCitationMentionLabel(target)}`;
     const nextDraft = draft.match(/(^|\s)@[^@]*$/)
       ? draft.replace(/(^|\s)@[^@]*$/, `$1${mention} `)
       : `${draft.trimEnd()} ${mention} `;
-    setDraftCitationCode(doc.code);
+    setDraftCitationCode(target.code);
     setDraft(nextDraft);
   }
 
@@ -1825,9 +2313,20 @@ function ChatView({
     const isOwn = message.authorId === currentMember.id;
     const openedByMe = message.imageOpenedBy.includes(currentMember.id);
     const revealedUrl = revealedImageUrls[message.id];
-    const visibleImageUrl = message.imageViewOnce && !isOwn ? revealedUrl : message.imageUrl;
+    const expired = message.imageExpiresAt ? new Date(message.imageExpiresAt).getTime() <= Date.now() : false;
+    const visibleImageUrl = message.imageViewOnce && !isOwn ? revealedUrl : revealedUrl || message.imageUrl;
+    const needsConsent = message.imageConsentRequired && !isOwn && !openedByMe && !revealedUrl;
 
-    if (message.imageViewOnce && !isOwn && !revealedUrl) {
+    if (expired) {
+      return (
+        <div className="image-placeholder">
+          <Timer size={18} aria-hidden />
+          <span>Imagem expirada</span>
+        </div>
+      );
+    }
+
+    if ((message.imageViewOnce || needsConsent) && !isOwn && !revealedUrl) {
       if (openedByMe) {
         return (
           <div className="image-placeholder">
@@ -1838,9 +2337,10 @@ function ChatView({
       }
 
       return (
-        <button className="image-reveal" type="button" onClick={() => revealImage(message)}>
-          <Eye size={18} aria-hidden />
-          <span>Abrir imagem uma vez</span>
+        <button className="image-reveal consent-envelope" type="button" onClick={() => revealImage(message)}>
+          <LockKeyhole size={18} aria-hidden />
+          <span>{message.imageViewOnce ? "Abrir imagem uma vez" : "Abrir com consentimento"}</span>
+          <small>Sem guardar, reenviar ou mostrar a terceiros.</small>
         </button>
       );
     }
@@ -1857,27 +2357,34 @@ function ChatView({
     return (
       <figure className="message-image">
         <img src={visibleImageUrl} alt={message.imageName ?? "Imagem enviada"} />
-        {message.imageViewOnce && (
-          <figcaption>
-            <EyeOff size={14} aria-hidden />
-            Ver uma vez
-          </figcaption>
-        )}
+        {message.imageConsentRequired && <span className="image-watermark">{currentMember.name}</span>}
+        <figcaption>
+          {message.imageViewOnce ? <EyeOff size={14} aria-hidden /> : <ShieldCheck size={14} aria-hidden />}
+          {message.imageViewOnce ? "Ver uma vez" : message.imageConsentRequired ? "Envelope privado" : "Imagem"}
+          {message.imageExpiresAt ? ` · expira ${formatExpiry(message.imageExpiresAt)}` : ""}
+        </figcaption>
       </figure>
     );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const selectedCitation = docs.find((doc) => doc.code === draftCitationCode);
+    const selectedCitation = citationTargets.find((target) => target.code === draftCitationCode);
     const citationCode =
       selectedCitation && hasDocMention(draft, selectedCitation)
         ? selectedCitation.code
-        : findReferencedDocCode(draft, docs);
-    const citedDoc = citationCode ? docs.find((doc) => doc.code === citationCode) : undefined;
-    const body = citedDoc ? stripCitationMention(draft, citedDoc) : draft;
+        : findReferencedDocCode(draft, citationTargets);
+    const citedTarget = citationCode ? citationTargets.find((target) => target.code === citationCode) : undefined;
+    const body = citedTarget ? stripCitationMention(draft, citedTarget) : draft;
     setSending(true);
-    const sent = await sendMessage({ body, citationCode, imageFile, imageViewOnce }).finally(() => setSending(false));
+    const sent = await sendMessage({
+      body,
+      citationCode,
+      imageFile,
+      imageViewOnce,
+      imageConsentRequired,
+      imageExpiresInHours,
+    }).finally(() => setSending(false));
     if (sent) {
       setDraft("");
       setDraftCitationCode("");
@@ -1948,6 +2455,8 @@ function ChatView({
           {visibleMessages.map((message) => {
             const author = memberById.get(message.authorId);
             const citedDoc = message.citationCode ? docsByCode.get(message.citationCode) : undefined;
+            const citedDecision = message.citationCode ? decisionsByCode.get(message.citationCode) : undefined;
+            const citedTitle = citedDoc?.title ?? citedDecision?.title;
             return (
               <article className={`message ${message.authorId === currentMember.id ? "own" : ""}`} key={message.id}>
                 <header>
@@ -1956,16 +2465,16 @@ function ChatView({
                 </header>
                 <p>{message.body}</p>
                 {renderMessageImage(message)}
-                {citedDoc && (
+                {citedTitle && (
                   <div className="message-actions">
-                    <button className="citation-chip" type="button" onClick={() => setSelectedCitation(citedDoc.code)}>
+                    <button className="citation-chip" type="button" onClick={() => setSelectedCitation(message.citationCode ?? "")}>
                       <Link2 size={14} aria-hidden />
-                      {citedDoc.title}
+                      {citedTitle}
                     </button>
                     <button
                       className="icon-only compact"
                       type="button"
-                      onClick={() => copyText(citedDoc.code, `${citedDoc.code} copiado.`)}
+                      onClick={() => copyText(message.citationCode ?? "", `${message.citationCode} copiado.`)}
                       title="Copiar código"
                     >
                       <Copy size={15} aria-hidden />
@@ -1984,16 +2493,16 @@ function ChatView({
         <form className="composer" onSubmit={handleSubmit}>
           {citationSuggestions.length > 0 && (
             <div className="mention-menu" role="listbox" aria-label="Documentos disponíveis">
-              {citationSuggestions.map((doc) => (
+              {citationSuggestions.map((target) => (
                 <button
-                  key={doc.id}
+                  key={target.id}
                   type="button"
                   role="option"
-                  aria-label={`Citar ${doc.title}`}
-                  onClick={() => insertCitationMention(doc)}
+                  aria-label={`Citar ${target.title}`}
+                  onClick={() => insertCitationMention(target)}
                 >
-                  <span>{doc.title}</span>
-                  <small>{doc.tags.slice(0, 2).join(" · ") || "Documento"}</small>
+                  <span>{target.title}</span>
+                  <small>{target.kind} · {target.tags.slice(0, 2).join(" · ")}</small>
                 </button>
               ))}
             </div>
@@ -2042,6 +2551,28 @@ function ChatView({
               <span>{imageViewOnce ? "Ver uma vez" : "Imagem normal"}</span>
             </button>
           )}
+          {imageFile && (
+            <div className="media-safety-row">
+              <button
+                className={`view-once-toggle ${imageConsentRequired ? "active" : ""}`}
+                type="button"
+                onClick={() => setImageConsentRequired((current) => !current)}
+              >
+                <LockKeyhole size={16} aria-hidden />
+                <span>{imageConsentRequired ? "Envelope privado" : "Sem envelope"}</span>
+              </button>
+              <select
+                aria-label="Expiração da imagem"
+                value={imageExpiresInHours}
+                onChange={(event) => setImageExpiresInHours(Number(event.target.value))}
+              >
+                <option value={1}>expira 1h</option>
+                <option value={12}>expira 12h</option>
+                <option value={24}>expira 24h</option>
+                <option value={72}>expira 3 dias</option>
+              </select>
+            </div>
+          )}
         </form>
       </section>
     </section>
@@ -2050,15 +2581,18 @@ function ChatView({
 
 function EventsView({
   events,
+  eventCheckIns,
   groups,
   currentMember,
   memberById,
   groupById,
   addEvent,
+  addEventCheckIn,
   deleteEvent,
   toggleRsvp,
 }: {
   events: EventItem[];
+  eventCheckIns: EventCheckIn[];
   groups: Group[];
   currentMember: Member;
   memberById: Map<string, Member>;
@@ -2069,6 +2603,16 @@ function EventsView({
     place: string;
     groupId: string;
     capacity: number;
+    vibe: EventVibe;
+    photoPolicy: PhotoPolicy;
+    boundaryNotes: string;
+    aftercarePrompt: string;
+  }) => Promise<boolean>;
+  addEventCheckIn: (input: {
+    eventId: string;
+    mood: CheckInMood;
+    note: string;
+    visibility: CheckInVisibility;
   }) => Promise<boolean>;
   deleteEvent: (eventId: string) => Promise<void>;
   toggleRsvp: (eventId: string) => void;
@@ -2079,6 +2623,16 @@ function EventsView({
     place: "",
     groupId: groups[0]?.id ?? "",
     capacity: 10,
+    vibe: "social" as EventVibe,
+    photoPolicy: "perguntar primeiro" as PhotoPolicy,
+    boundaryNotes: "",
+    aftercarePrompt: "",
+  });
+  const [checkInForm, setCheckInForm] = useState({
+    eventId: "",
+    mood: "bem" as CheckInMood,
+    note: "",
+    visibility: "admins" as CheckInVisibility,
   });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -2086,7 +2640,16 @@ function EventsView({
     if (!form.title.trim() || !form.startsAt || !form.place.trim()) return;
     const created = await addEvent(form);
     if (created) {
-      setForm((current) => ({ ...current, title: "", place: "" }));
+      setForm((current) => ({ ...current, title: "", place: "", boundaryNotes: "", aftercarePrompt: "" }));
+    }
+  }
+
+  async function handleCheckInSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!checkInForm.eventId) return;
+    const created = await addEventCheckIn(checkInForm);
+    if (created) {
+      setCheckInForm((current) => ({ ...current, note: "" }));
     }
   }
 
@@ -2134,6 +2697,51 @@ function EventsView({
             ))}
           </select>
         </div>
+        <div className="field-pair">
+          <div className="field-group">
+            <label htmlFor="event-vibe">Vibe</label>
+            <select
+              id="event-vibe"
+              value={form.vibe}
+              onChange={(event) => setForm({ ...form, vibe: event.target.value as EventVibe })}
+            >
+              <option value="social">social</option>
+              <option value="discussão">discussão</option>
+              <option value="festa">festa</option>
+              <option value="íntimo">íntimo</option>
+              <option value="público">público</option>
+            </select>
+          </div>
+          <div className="field-group">
+            <label htmlFor="event-photo-policy">Fotos</label>
+            <select
+              id="event-photo-policy"
+              value={form.photoPolicy}
+              onChange={(event) => setForm({ ...form, photoPolicy: event.target.value as PhotoPolicy })}
+            >
+              <option value="sem fotos">sem fotos</option>
+              <option value="perguntar primeiro">perguntar primeiro</option>
+              <option value="zonas comuns ok">zonas comuns ok</option>
+            </select>
+          </div>
+        </div>
+        <div className="field-group">
+          <label htmlFor="event-boundaries">Acordos do espaço</label>
+          <textarea
+            id="event-boundaries"
+            rows={3}
+            value={form.boundaryNotes}
+            onChange={(event) => setForm({ ...form, boundaryNotes: event.target.value })}
+          />
+        </div>
+        <div className="field-group">
+          <label htmlFor="event-aftercare">Aftercare</label>
+          <input
+            id="event-aftercare"
+            value={form.aftercarePrompt}
+            onChange={(event) => setForm({ ...form, aftercarePrompt: event.target.value })}
+          />
+        </div>
         <button className="primary-button" type="submit">
           <Plus size={17} aria-hidden />
           Criar evento
@@ -2141,9 +2749,73 @@ function EventsView({
       </form>
 
       <section className="event-board">
+        <form className="surface checkin-panel" onSubmit={handleCheckInSubmit}>
+          <SurfaceHeader icon={<HeartHandshake />} title="Check-in pós-evento" />
+          <div className="field-pair">
+            <div className="field-group">
+              <label htmlFor="checkin-event">Evento</label>
+              <select
+                id="checkin-event"
+                value={checkInForm.eventId}
+                onChange={(event) => setCheckInForm({ ...checkInForm, eventId: event.target.value })}
+              >
+                <option value="">escolher</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="checkin-mood">Como ficou</label>
+              <select
+                id="checkin-mood"
+                value={checkInForm.mood}
+                onChange={(event) => setCheckInForm({ ...checkInForm, mood: event.target.value as CheckInMood })}
+              >
+                <option value="bem">bem</option>
+                <option value="misto">misto</option>
+                <option value="atenção">atenção</option>
+              </select>
+            </div>
+          </div>
+          <div className="field-group">
+            <label htmlFor="checkin-note">Nota</label>
+            <textarea
+              id="checkin-note"
+              rows={3}
+              value={checkInForm.note}
+              onChange={(event) => setCheckInForm({ ...checkInForm, note: event.target.value })}
+            />
+          </div>
+          <div className="field-pair">
+            <div className="field-group">
+              <label htmlFor="checkin-visibility">Visível para</label>
+              <select
+                id="checkin-visibility"
+                value={checkInForm.visibility}
+                onChange={(event) =>
+                  setCheckInForm({ ...checkInForm, visibility: event.target.value as CheckInVisibility })
+                }
+              >
+                <option value="admins">admins</option>
+                <option value="sponsor">padrinhe</option>
+                <option value="comunidade">comunidade</option>
+              </select>
+            </div>
+            <button className="primary-button" type="submit">
+              <ClipboardCheck size={17} aria-hidden />
+              Guardar
+            </button>
+          </div>
+        </form>
+
         {events.map((event) => {
           const attending = event.attendeeIds.includes(currentMember.id);
           const canDelete = currentMember.role === "admin" || event.createdBy === currentMember.id;
+          const checkIns = eventCheckIns.filter((checkIn) => checkIn.eventId === event.id);
+          const moodCounts = countMoods(checkIns);
           return (
             <article className="surface event-card" key={event.id}>
               <time dateTime={event.startsAt}>
@@ -2158,11 +2830,24 @@ function EventsView({
                 <p>
                   {formatTime(event.startsAt)} · {event.place}
                 </p>
+                <div className="event-boundaries">
+                  <span>{event.vibe}</span>
+                  <span>{event.photoPolicy}</span>
+                  {event.boundaryNotes && <span>{event.boundaryNotes}</span>}
+                  {event.aftercarePrompt && <span>{event.aftercarePrompt}</span>}
+                </div>
                 <div className="attendee-row">
                   {event.attendeeIds.map((id) => (
                     <span key={id}>{memberById.get(id)?.name}</span>
                   ))}
                 </div>
+                {checkIns.length > 0 && (
+                  <div className="checkin-summary">
+                    <span>{moodCounts.bem} bem</span>
+                    <span>{moodCounts.misto} misto</span>
+                    <span>{moodCounts.atenção} atenção</span>
+                  </div>
+                )}
               </div>
               <div className="event-actions">
                 <button
@@ -2198,6 +2883,7 @@ function EventsView({
 
 function DocsView({
   docs,
+  decisions,
   members,
   currentMember,
   memberById,
@@ -2206,11 +2892,15 @@ function DocsView({
   selectedCitation,
   setSelectedCitation,
   addDoc,
+  addDecision,
+  voteDecision,
+  deleteDecision,
   deleteDoc,
   copyText,
   showNotice,
 }: {
   docs: CommunityDoc[];
+  decisions: DecisionRecord[];
   members: Member[];
   currentMember: Member;
   memberById: Map<string, Member>;
@@ -2219,11 +2909,26 @@ function DocsView({
   selectedCitation: string;
   setSelectedCitation: (code: string) => void;
   addDoc: (input: { title: string; summary: string; tags: string }) => Promise<boolean>;
+  addDecision: (input: {
+    title: string;
+    summary: string;
+    outcome: string;
+    status: DecisionStatus;
+  }) => Promise<boolean>;
+  voteDecision: (decisionId: string, vote: DecisionVote) => Promise<void>;
+  deleteDecision: (decisionId: string) => Promise<void>;
   deleteDoc: (docId: string) => Promise<void>;
   copyText: (value: string, message: string) => Promise<void>;
   showNotice: (message: string) => void;
 }) {
   const [form, setForm] = useState({ title: "", summary: "", tags: "" });
+  const [decisionForm, setDecisionForm] = useState({
+    title: "",
+    summary: "",
+    outcome: "",
+    status: "aberta" as DecisionStatus,
+  });
+  const [voteNotes, setVoteNotes] = useState<Record<string, string>>({});
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2231,6 +2936,15 @@ function DocsView({
     const created = await addDoc(form);
     if (created) {
       setForm({ title: "", summary: "", tags: "" });
+    }
+  }
+
+  async function handleDecisionSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!decisionForm.title.trim() || !decisionForm.summary.trim() || !decisionForm.outcome.trim()) return;
+    const created = await addDecision(decisionForm);
+    if (created) {
+      setDecisionForm({ title: "", summary: "", outcome: "", status: "aberta" });
     }
   }
 
@@ -2244,6 +2958,88 @@ function DocsView({
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Pesquisar por código, tema ou texto"
           />
+        </div>
+        <div className="decision-list">
+          {decisions.map((decision) => {
+            const ownVote = decision.votes.find((vote) => vote.memberId === currentMember.id);
+            const canDelete = currentMember.role === "admin" || decision.createdBy === currentMember.id;
+            const voteCounts = countDecisionVotes(decision.votes);
+            return (
+              <article className={`decision-row ${selectedCitation === decision.code ? "selected" : ""}`} key={decision.id}>
+                <div>
+                  <span className="doc-code">{decision.code}</span>
+                  <h3>{decision.title}</h3>
+                  <p>{decision.summary}</p>
+                  <blockquote>{decision.outcome}</blockquote>
+                  <footer>
+                    <span>{decision.status}</span>
+                    <span>{voteCounts.sim} sim</span>
+                    <span>{voteCounts.não} não</span>
+                    <span>{voteCounts.abstenção} abs.</span>
+                    <span>{voteCounts.bloqueio} bloqueio</span>
+                  </footer>
+                  <div className="vote-row">
+                    {(["sim", "não", "abstenção", "bloqueio"] as DecisionVoteValue[]).map((value) => (
+                      <button
+                        key={value}
+                        className={ownVote?.value === value ? "secondary-button selected" : "secondary-button"}
+                        type="button"
+                        onClick={() =>
+                          voteDecision(decision.id, {
+                            memberId: currentMember.id,
+                            value,
+                            note: voteNotes[decision.id] ?? ownVote?.note ?? "",
+                          })
+                        }
+                      >
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    value={voteNotes[decision.id] ?? ownVote?.note ?? ""}
+                    onChange={(event) => setVoteNotes({ ...voteNotes, [decision.id]: event.target.value })}
+                    placeholder="nota de voto"
+                  />
+                </div>
+                <div className="doc-actions">
+                  <button
+                    className="icon-only"
+                    type="button"
+                    onClick={() => {
+                      setSelectedCitation(decision.code);
+                      showNotice(`${decision.code} selecionada para o chat.`);
+                    }}
+                    title="Usar no chat"
+                  >
+                    <Link2 size={17} aria-hidden />
+                  </button>
+                  <button
+                    className="icon-only"
+                    type="button"
+                    onClick={() => copyText(decision.code, `${decision.code} copiada.`)}
+                    title="Copiar código"
+                  >
+                    <Copy size={17} aria-hidden />
+                  </button>
+                  {canDelete && (
+                    <button
+                      className="icon-only danger"
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Eliminar "${decision.title}"?`)) {
+                          deleteDecision(decision.id);
+                        }
+                      }}
+                      title="Eliminar decisão"
+                    >
+                      <Trash2 size={17} aria-hidden />
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
         <div className="doc-list">
           {docs.map((doc) => {
@@ -2301,8 +3097,55 @@ function DocsView({
         </div>
       </div>
 
-      <form className="surface form-panel" onSubmit={handleSubmit}>
-        <h3>Nova conclusão</h3>
+      <div className="memory-forms">
+        <form className="surface form-panel" onSubmit={handleDecisionSubmit}>
+          <h3>Nova decisão</h3>
+          <div className="field-group">
+            <label htmlFor="decision-title">Título</label>
+            <input
+              id="decision-title"
+              value={decisionForm.title}
+              onChange={(event) => setDecisionForm({ ...decisionForm, title: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="decision-summary">Ata curta</label>
+            <textarea
+              id="decision-summary"
+              rows={4}
+              value={decisionForm.summary}
+              onChange={(event) => setDecisionForm({ ...decisionForm, summary: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="decision-outcome">Decisão final</label>
+            <textarea
+              id="decision-outcome"
+              rows={4}
+              value={decisionForm.outcome}
+              onChange={(event) => setDecisionForm({ ...decisionForm, outcome: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="decision-status">Estado</label>
+            <select
+              id="decision-status"
+              value={decisionForm.status}
+              onChange={(event) => setDecisionForm({ ...decisionForm, status: event.target.value as DecisionStatus })}
+            >
+              <option value="rascunho">rascunho</option>
+              <option value="aberta">aberta</option>
+              <option value="decidida">decidida</option>
+            </select>
+          </div>
+          <button className="primary-button" type="submit">
+            <Vote size={17} aria-hidden />
+            Guardar decisão
+          </button>
+        </form>
+
+        <form className="surface form-panel" onSubmit={handleSubmit}>
+          <h3>Nova conclusão</h3>
         <div className="field-group">
           <label htmlFor="doc-title">Título</label>
           <input id="doc-title" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
@@ -2325,7 +3168,8 @@ function DocsView({
           <FilePlus2 size={17} aria-hidden />
           Guardar doc
         </button>
-      </form>
+        </form>
+      </div>
     </section>
   );
 }
@@ -2444,6 +3288,7 @@ function EntrancesView({
   currentMember,
   inviteCodes,
   createInvite,
+  updateConsentCard,
   copyText,
 }: {
   members: Member[];
@@ -2454,6 +3299,14 @@ function EntrancesView({
   currentMember: Member;
   inviteCodes: InviteCode[];
   createInvite?: (input: { code: string; role: MemberRole; maxUses: number }) => Promise<boolean>;
+  updateConsentCard: (input: {
+    memberId: string;
+    consentAvailableFor: string;
+    consentLimits: string;
+    mediaPreference: string;
+    relationshipContext: string;
+    eventComfort: string;
+  }) => Promise<boolean>;
   copyText: (value: string, message: string) => Promise<void>;
 }) {
   const [form, setForm] = useState({
@@ -2467,6 +3320,23 @@ function EntrancesView({
     role: "nova pessoa" as MemberRole,
     maxUses: 1,
   });
+  const [consentForm, setConsentForm] = useState({
+    consentAvailableFor: currentMember.consentAvailableFor,
+    consentLimits: currentMember.consentLimits,
+    mediaPreference: currentMember.mediaPreference,
+    relationshipContext: currentMember.relationshipContext,
+    eventComfort: currentMember.eventComfort,
+  });
+
+  useEffect(() => {
+    setConsentForm({
+      consentAvailableFor: currentMember.consentAvailableFor,
+      consentLimits: currentMember.consentLimits,
+      mediaPreference: currentMember.mediaPreference,
+      relationshipContext: currentMember.relationshipContext,
+      eventComfort: currentMember.eventComfort,
+    });
+  }, [currentMember]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2482,6 +3352,11 @@ function EntrancesView({
     if (created) {
       setInviteForm({ code: makeInviteCode(), role: "nova pessoa", maxUses: 1 });
     }
+  }
+
+  async function handleConsentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    updateConsentCard({ memberId: currentMember.id, ...consentForm });
   }
 
   return (
@@ -2642,6 +3517,89 @@ function EntrancesView({
           })}
         </div>
       </section>
+
+      <section className="surface consent-board">
+        <SurfaceHeader icon={<HeartHandshake />} title="Cartões de consentimento" />
+        <form className="consent-editor" onSubmit={handleConsentSubmit}>
+          <div className="field-group">
+            <label htmlFor="consent-available">Disponível para</label>
+            <input
+              id="consent-available"
+              value={consentForm.consentAvailableFor}
+              onChange={(event) => setConsentForm({ ...consentForm, consentAvailableFor: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="consent-limits">Limites</label>
+            <input
+              id="consent-limits"
+              value={consentForm.consentLimits}
+              onChange={(event) => setConsentForm({ ...consentForm, consentLimits: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="consent-media">Media íntima</label>
+            <input
+              id="consent-media"
+              value={consentForm.mediaPreference}
+              onChange={(event) => setConsentForm({ ...consentForm, mediaPreference: event.target.value })}
+            />
+          </div>
+          <div className="field-pair">
+            <div className="field-group">
+              <label htmlFor="consent-context">Contexto</label>
+              <input
+                id="consent-context"
+                value={consentForm.relationshipContext}
+                onChange={(event) => setConsentForm({ ...consentForm, relationshipContext: event.target.value })}
+              />
+            </div>
+            <div className="field-group">
+              <label htmlFor="consent-events">Eventos</label>
+              <input
+                id="consent-events"
+                value={consentForm.eventComfort}
+                onChange={(event) => setConsentForm({ ...consentForm, eventComfort: event.target.value })}
+              />
+            </div>
+          </div>
+          <button className="primary-button" type="submit">
+            <ShieldCheck size={17} aria-hidden />
+            Atualizar cartão
+          </button>
+        </form>
+        <div className="consent-card-list">
+          {members.map((member) => (
+            <article className="consent-card" key={member.id}>
+              <header>
+                <div className="avatar">{initials(member.name)}</div>
+                <div>
+                  <h3>{member.name}</h3>
+                  <p>{member.pronouns}</p>
+                </div>
+              </header>
+              <dl>
+                <div>
+                  <dt>Disponível</dt>
+                  <dd>{member.consentAvailableFor || "por preencher"}</dd>
+                </div>
+                <div>
+                  <dt>Limites</dt>
+                  <dd>{member.consentLimits || "por preencher"}</dd>
+                </div>
+                <div>
+                  <dt>Media</dt>
+                  <dd>{member.mediaPreference || "por preencher"}</dd>
+                </div>
+                <div>
+                  <dt>Eventos</dt>
+                  <dd>{member.eventComfort || "por preencher"}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      </section>
     </section>
   );
 }
@@ -2722,7 +3680,7 @@ function loadState(): CommunityState {
   if (!stored) return seedState;
   try {
     const parsed = JSON.parse(stored);
-    return isCommunityState(parsed) ? parsed : seedState;
+    return isCommunityState(parsed) ? normalizeCommunityState(parsed) : seedState;
   } catch {
     return seedState;
   }
@@ -2738,6 +3696,34 @@ function isCommunityState(value: unknown): value is CommunityState {
     Array.isArray(candidate.docs) &&
     Array.isArray(candidate.messages)
   );
+}
+
+function normalizeCommunityState(state: CommunityState): CommunityState {
+  return {
+    ...state,
+    members: state.members.map((member) => ({
+      ...member,
+      consentAvailableFor: member.consentAvailableFor ?? "",
+      consentLimits: member.consentLimits ?? "",
+      mediaPreference: member.mediaPreference ?? "",
+      relationshipContext: member.relationshipContext ?? "",
+      eventComfort: member.eventComfort ?? "",
+    })),
+    events: state.events.map((event) => ({
+      ...event,
+      vibe: event.vibe ?? "social",
+      photoPolicy: event.photoPolicy ?? "perguntar primeiro",
+      boundaryNotes: event.boundaryNotes ?? "",
+      aftercarePrompt: event.aftercarePrompt ?? "",
+    })),
+    decisions: Array.isArray(state.decisions) ? state.decisions : [],
+    eventCheckIns: Array.isArray(state.eventCheckIns) ? state.eventCheckIns : [],
+    messages: state.messages.map((message) => ({
+      ...message,
+      imageConsentRequired: message.imageConsentRequired ?? false,
+      imageExpiresAt: message.imageExpiresAt,
+    })),
+  };
 }
 
 function getSyncCopy(status: SyncStatus) {
@@ -2792,7 +3778,7 @@ function navTitle(nav: NavKey) {
     hoje: "Hoje",
     chat: "Chat ao vivo",
     eventos: "Eventos",
-    docs: "Conclusões e documentos",
+    docs: "Memória e decisões",
     grupos: "Comunidade e subgrupos",
     entradas: "Apadrinhamento",
   };
@@ -2837,29 +3823,52 @@ function getActiveMentionQuery(value: string) {
   return match ? match[2].trimStart() : null;
 }
 
-function findReferencedDocCode(value: string, docs: CommunityDoc[]) {
-  return docs.find((doc) => hasDocMention(value, doc))?.code;
+function findReferencedDocCode(value: string, targets: CitationTarget[]) {
+  return targets.find((target) => hasDocMention(value, target))?.code;
 }
 
-function hasDocMention(value: string, doc: CommunityDoc) {
-  return docMentionPatterns(doc).some((pattern) => pattern.test(value));
+function hasDocMention(value: string, target: CitationTarget) {
+  return citationMentionPatterns(target).some((pattern) => pattern.test(value));
 }
 
-function stripCitationMention(value: string, doc: CommunityDoc) {
-  return docMentionPatterns(doc)
+function stripCitationMention(value: string, target: CitationTarget) {
+  return citationMentionPatterns(target)
     .reduce((nextValue, pattern) => nextValue.replace(pattern, " "), value)
     .replace(/\s{2,}/g, " ")
     .trim();
 }
 
-function docMentionPatterns(doc: CommunityDoc) {
-  return [doc.code, getDocMentionLabel(doc)].map(
+function citationMentionPatterns(target: CitationTarget) {
+  return [target.code, getCitationMentionLabel(target)].map(
     (label) => new RegExp(`(^|\\s)@${escapeRegExp(label)}(?=\\s|$)`, "gi"),
   );
 }
 
-function getDocMentionLabel(doc: CommunityDoc) {
-  return doc.title;
+function getCitationMentionLabel(target: CitationTarget) {
+  return target.title;
+}
+
+function countDecisionVotes(votes: DecisionVote[]) {
+  return votes.reduce(
+    (counts, vote) => ({ ...counts, [vote.value]: counts[vote.value] + 1 }),
+    { sim: 0, não: 0, abstenção: 0, bloqueio: 0 } as Record<DecisionVoteValue, number>,
+  );
+}
+
+function countMoods(checkIns: EventCheckIn[]) {
+  return checkIns.reduce(
+    (counts, checkIn) => ({ ...counts, [checkIn.mood]: counts[checkIn.mood] + 1 }),
+    { bem: 0, misto: 0, atenção: 0 } as Record<CheckInMood, number>,
+  );
+}
+
+function formatExpiry(value: string) {
+  return new Intl.DateTimeFormat("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "short",
+  }).format(new Date(value));
 }
 
 function escapeRegExp(value: string) {
