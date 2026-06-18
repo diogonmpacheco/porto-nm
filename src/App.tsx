@@ -1168,10 +1168,11 @@ function AuthView() {
     setSubmitting(true);
     setMessage("");
 
+    const loginEmail = mode === "login" ? resolveLoginIdentifier(email) : email.trim();
     const result =
       mode === "login"
-        ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
-        : await supabase.auth.signUp({ email: email.trim(), password });
+        ? await supabase.auth.signInWithPassword({ email: loginEmail, password })
+        : await supabase.auth.signUp({ email: loginEmail, password });
 
     setSubmitting(false);
 
@@ -1209,10 +1210,10 @@ function AuthView() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="field-group">
-            <label htmlFor="auth-email">Email</label>
+            <label htmlFor="auth-email">{mode === "login" ? "Email ou acesso de teste" : "Email"}</label>
             <input
               id="auth-email"
-              type="email"
+              type={mode === "login" ? "text" : "email"}
               autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -2193,6 +2194,16 @@ function makeInviteCode() {
     .toString(36)
     .slice(2, 6)
     .toUpperCase()}`;
+}
+
+function resolveLoginIdentifier(value: string) {
+  const trimmed = value.trim();
+  const aliases: Record<string, string> = {
+    admin: "admin@porto-nm.test",
+    tester: "tester@porto-nm.test",
+  };
+
+  return aliases[trimmed.toLowerCase()] ?? trimmed;
 }
 
 function navTitle(nav: NavKey) {
