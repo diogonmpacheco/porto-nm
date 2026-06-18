@@ -321,6 +321,7 @@ function App() {
   const [activeGroupId, setActiveGroupId] = useState("g_geral");
   const [selectedCitation, setSelectedCitation] = useState("DOC-001");
   const [search, setSearch] = useState("");
+  const [notice, setNotice] = useState("");
 
   const fetchBackendData = useCallback(async () => {
     if (!supabase || !session) return;
@@ -552,6 +553,12 @@ function App() {
   }, [state, usingBackend]);
 
   useEffect(() => {
+    if (!notice) return;
+    const handle = window.setTimeout(() => setNotice(""), 3200);
+    return () => window.clearTimeout(handle);
+  }, [notice]);
+
+  useEffect(() => {
     if (profile) {
       setProfile((current) => state.members.find((member) => member.id === current?.id) ?? current);
     }
@@ -609,6 +616,19 @@ function App() {
     setState((current) => updater(current));
   }
 
+  function showNotice(message: string) {
+    setNotice(message);
+  }
+
+  async function copyText(value: string, message: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      showNotice(message);
+    } catch {
+      showNotice("Não foi possível copiar automaticamente.");
+    }
+  }
+
   function resetState() {
     if (usingBackend) {
       fetchBackendData();
@@ -618,6 +638,7 @@ function App() {
     setCurrentMemberId("m_di");
     setActiveGroupId("g_geral");
     setSelectedCitation("DOC-001");
+    showNotice("Exemplo reposto.");
   }
 
   async function toggleMemberStatus(memberId: string) {
@@ -637,6 +658,7 @@ function App() {
         return;
       }
       await fetchBackendData();
+      showNotice("Presença atualizada.");
       return;
     }
 
@@ -648,11 +670,12 @@ function App() {
           : member,
       ),
     }));
+    showNotice("Presença atualizada.");
   }
 
   async function sendMessage(body: string) {
     const trimmed = body.trim();
-    if (!trimmed) return;
+    if (!trimmed) return false;
     const groupMembers = state.members.filter((member) => member.groupIds.includes(activeGroup.id));
     const recipientsAtSend = groupMembers
       .filter((member) => member.status === "online" && member.id !== currentMember.id)
@@ -671,10 +694,11 @@ function App() {
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
-        return;
+        return false;
       }
       await fetchBackendData();
-      return;
+      showNotice("Mensagem enviada.");
+      return true;
     }
 
     updateState((current) => ({
@@ -692,6 +716,8 @@ function App() {
         },
       ],
     }));
+    showNotice("Mensagem enviada.");
+    return true;
   }
 
   function addMember(input: {
@@ -711,6 +737,7 @@ function App() {
       status: "offline",
     };
     updateState((current) => ({ ...current, members: [...current.members, member] }));
+    showNotice("Entrada vinculada.");
   }
 
   async function addEvent(input: {
@@ -735,11 +762,12 @@ function App() {
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
-        return;
+        return false;
       }
       await supabase.from("event_attendees").insert({ event_id: eventId, member_id: profile.id });
       await fetchBackendData();
-      return;
+      showNotice("Evento criado.");
+      return true;
     }
 
     const event: EventItem = {
@@ -752,6 +780,8 @@ function App() {
       attendeeIds: [currentMember.id],
     };
     updateState((current) => ({ ...current, events: [...current.events, event] }));
+    showNotice("Evento criado.");
+    return true;
   }
 
   async function toggleRsvp(eventId: string) {
@@ -774,6 +804,7 @@ function App() {
         return;
       }
       await fetchBackendData();
+      showNotice("Confirmação atualizada.");
       return;
     }
 
@@ -790,6 +821,7 @@ function App() {
         };
       }),
     }));
+    showNotice("Confirmação atualizada.");
   }
 
   async function addDoc(input: { title: string; summary: string; tags: string }) {
@@ -813,11 +845,12 @@ function App() {
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
-        return;
+        return false;
       }
       setSelectedCitation(code);
       await fetchBackendData();
-      return;
+      showNotice(`${code} guardado e pronto para citar.`);
+      return true;
     }
 
     const doc: CommunityDoc = {
@@ -831,6 +864,8 @@ function App() {
     };
     updateState((current) => ({ ...current, docs: [...current.docs, doc] }));
     setSelectedCitation(doc.code);
+    showNotice(`${doc.code} guardado e pronto para citar.`);
+    return true;
   }
 
   async function addGroup(input: {
@@ -842,6 +877,12 @@ function App() {
     const palette = ["#176b63", "#c4493d", "#5457a6", "#9a5a20", "#2d6f9f"];
     const groupId = `g_${crypto.randomUUID()}`;
     const groupColor = palette[state.groups.length % palette.length];
+
+    if (usingBackend && profile?.role !== "guardia") {
+      setSyncStatus("error");
+      setSyncMessage("Só guardiãs/os podem criar subgrupos.");
+      return false;
+    }
 
     if (usingBackend && supabase && profile?.role === "guardia") {
       setSyncStatus("saving");
@@ -856,12 +897,13 @@ function App() {
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
-        return;
+        return false;
       }
       await supabase.from("group_members").insert({ group_id: groupId, member_id: input.stewardId });
       setActiveGroupId(groupId);
       await fetchBackendData();
-      return;
+      showNotice("Subgrupo criado.");
+      return true;
     }
 
     const group: Group = {
@@ -874,9 +916,17 @@ function App() {
     };
     updateState((current) => ({ ...current, groups: [...current.groups, group] }));
     setActiveGroupId(group.id);
+    showNotice("Subgrupo criado.");
+    return true;
   }
 
   async function toggleGroupMember(groupId: string, memberId: string) {
+    if (usingBackend && profile?.role !== "guardia") {
+      setSyncStatus("error");
+      setSyncMessage("Só guardiãs/os podem gerir membros de subgrupos.");
+      return;
+    }
+
     if (usingBackend && supabase && profile?.role === "guardia") {
       const member = state.members.find((candidate) => candidate.id === memberId);
       if (!member) return;
@@ -895,6 +945,7 @@ function App() {
         return;
       }
       await fetchBackendData();
+      showNotice("Membros do grupo atualizados.");
       return;
     }
 
@@ -911,10 +962,11 @@ function App() {
         };
       }),
     }));
+    showNotice("Membros do grupo atualizados.");
   }
 
   async function createInvite(input: { code: string; role: MemberRole; maxUses: number }) {
-    if (!supabase || !profile) return;
+    if (!supabase || !profile) return false;
     const code = (input.code.trim() || makeInviteCode()).toUpperCase();
     setSyncStatus("saving");
     const { error } = await supabase.from("invite_codes").insert({
@@ -926,9 +978,11 @@ function App() {
     if (error) {
       setSyncStatus("error");
       setSyncMessage(error.message);
-      return;
+      return false;
     }
     await fetchBackendData();
+    showNotice("Convite criado.");
+    return true;
   }
 
   async function handleSignOut() {
@@ -964,6 +1018,7 @@ function App() {
       return;
     }
     await refreshSignedInData();
+    showNotice(input.mode === "founder" ? "Comunidade criada." : "Entrada concluída.");
   }
 
   if (usingBackend && authLoading) {
@@ -987,6 +1042,12 @@ function App() {
 
   return (
     <div className="app-shell">
+      {notice && (
+        <div className="toast" role="status" aria-live="polite">
+          <Check size={17} aria-hidden />
+          {notice}
+        </div>
+      )}
       <aside className="sidebar">
         <div className="brand-block">
           <div className="brand-mark">
@@ -1055,6 +1116,14 @@ function App() {
               <ShieldCheck size={16} aria-hidden />
               {state.members.length} membros
             </span>
+            <button
+              className="status-action"
+              type="button"
+              onClick={() => copyText(window.location.origin, "Link da app copiado.")}
+            >
+              <Copy size={16} aria-hidden />
+              Link
+            </button>
           </div>
         </header>
 
@@ -1085,6 +1154,7 @@ function App() {
             setSelectedCitation={setSelectedCitation}
             sendMessage={sendMessage}
             toggleMemberStatus={toggleMemberStatus}
+            copyText={copyText}
           />
         )}
 
@@ -1111,6 +1181,8 @@ function App() {
             selectedCitation={selectedCitation}
             setSelectedCitation={setSelectedCitation}
             addDoc={addDoc}
+            copyText={copyText}
+            showNotice={showNotice}
           />
         )}
 
@@ -1134,6 +1206,7 @@ function App() {
             currentMember={currentMember}
             inviteCodes={inviteCodes}
             createInvite={createInvite}
+            copyText={copyText}
           />
         )}
       </main>
@@ -1432,6 +1505,7 @@ function ChatView({
   setSelectedCitation,
   sendMessage,
   toggleMemberStatus,
+  copyText,
 }: {
   members: Member[];
   groups: Group[];
@@ -1444,8 +1518,9 @@ function ChatView({
   selectedCitation: string;
   setActiveGroupId: (id: string) => void;
   setSelectedCitation: (code: string) => void;
-  sendMessage: (body: string) => void;
+  sendMessage: (body: string) => Promise<boolean>;
   toggleMemberStatus: (id: string) => void;
+  copyText: (value: string, message: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState("");
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
@@ -1457,10 +1532,12 @@ function ChatView({
   });
   const groupMembers = members.filter((member) => member.groupIds.includes(activeGroup.id));
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    sendMessage(draft);
-    setDraft("");
+    const sent = await sendMessage(draft);
+    if (sent) {
+      setDraft("");
+    }
   }
 
   return (
@@ -1515,10 +1592,20 @@ function ChatView({
                 </header>
                 <p>{message.body}</p>
                 {citedDoc && (
-                  <button className="citation-chip" type="button" onClick={() => setSelectedCitation(citedDoc.code)}>
-                    <Link2 size={14} aria-hidden />
-                    {citedDoc.code} · {citedDoc.title}
-                  </button>
+                  <div className="message-actions">
+                    <button className="citation-chip" type="button" onClick={() => setSelectedCitation(citedDoc.code)}>
+                      <Link2 size={14} aria-hidden />
+                      {citedDoc.code} · {citedDoc.title}
+                    </button>
+                    <button
+                      className="icon-only compact"
+                      type="button"
+                      onClick={() => copyText(citedDoc.code, `${citedDoc.code} copiado.`)}
+                      title="Copiar código"
+                    >
+                      <Copy size={15} aria-hidden />
+                    </button>
+                  </div>
                 )}
                 <footer>
                   Entregue a {message.recipientsAtSend.length} equipamento
@@ -1577,7 +1664,7 @@ function EventsView({
     place: string;
     groupId: string;
     capacity: number;
-  }) => void;
+  }) => Promise<boolean>;
   toggleRsvp: (eventId: string) => void;
 }) {
   const [form, setForm] = useState({
@@ -1588,11 +1675,13 @@ function EventsView({
     capacity: 10,
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.title.trim() || !form.startsAt || !form.place.trim()) return;
-    addEvent(form);
-    setForm((current) => ({ ...current, title: "", place: "" }));
+    const created = await addEvent(form);
+    if (created) {
+      setForm((current) => ({ ...current, title: "", place: "" }));
+    }
   }
 
   return (
@@ -1694,6 +1783,8 @@ function DocsView({
   selectedCitation,
   setSelectedCitation,
   addDoc,
+  copyText,
+  showNotice,
 }: {
   docs: CommunityDoc[];
   members: Member[];
@@ -1703,15 +1794,19 @@ function DocsView({
   setSearch: (value: string) => void;
   selectedCitation: string;
   setSelectedCitation: (code: string) => void;
-  addDoc: (input: { title: string; summary: string; tags: string }) => void;
+  addDoc: (input: { title: string; summary: string; tags: string }) => Promise<boolean>;
+  copyText: (value: string, message: string) => Promise<void>;
+  showNotice: (message: string) => void;
 }) {
   const [form, setForm] = useState({ title: "", summary: "", tags: "" });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.title.trim() || !form.summary.trim()) return;
-    addDoc(form);
-    setForm({ title: "", summary: "", tags: "" });
+    const created = await addDoc(form);
+    if (created) {
+      setForm({ title: "", summary: "", tags: "" });
+    }
   }
 
   return (
@@ -1738,9 +1833,27 @@ function DocsView({
                   ))}
                 </footer>
               </div>
-              <button className="icon-only" type="button" onClick={() => setSelectedCitation(doc.code)} title="Usar citação">
-                <Copy size={17} aria-hidden />
-              </button>
+              <div className="doc-actions">
+                <button
+                  className="icon-only"
+                  type="button"
+                  onClick={() => {
+                    setSelectedCitation(doc.code);
+                    showNotice(`${doc.code} selecionado para o chat.`);
+                  }}
+                  title="Usar no chat"
+                >
+                  <Link2 size={17} aria-hidden />
+                </button>
+                <button
+                  className="icon-only"
+                  type="button"
+                  onClick={() => copyText(doc.code, `${doc.code} copiado.`)}
+                  title="Copiar código"
+                >
+                  <Copy size={17} aria-hidden />
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -1785,7 +1898,7 @@ function GroupsView({
   groups: Group[];
   members: Member[];
   memberById: Map<string, Member>;
-  addGroup: (input: { name: string; focus: string; privacy: GroupPrivacy; stewardId: string }) => void;
+  addGroup: (input: { name: string; focus: string; privacy: GroupPrivacy; stewardId: string }) => Promise<boolean>;
   toggleGroupMember: (groupId: string, memberId: string) => void;
 }) {
   const [form, setForm] = useState({
@@ -1795,11 +1908,13 @@ function GroupsView({
     stewardId: members[0]?.id ?? "",
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.name.trim() || !form.focus.trim()) return;
-    addGroup(form);
-    setForm((current) => ({ ...current, name: "", focus: "" }));
+    const created = await addGroup(form);
+    if (created) {
+      setForm((current) => ({ ...current, name: "", focus: "" }));
+    }
   }
 
   return (
@@ -1887,6 +2002,7 @@ function EntrancesView({
   currentMember,
   inviteCodes,
   createInvite,
+  copyText,
 }: {
   members: Member[];
   groups: Group[];
@@ -1895,7 +2011,8 @@ function EntrancesView({
   backendMode?: boolean;
   currentMember: Member;
   inviteCodes: InviteCode[];
-  createInvite?: (input: { code: string; role: MemberRole; maxUses: number }) => Promise<void>;
+  createInvite?: (input: { code: string; role: MemberRole; maxUses: number }) => Promise<boolean>;
+  copyText: (value: string, message: string) => Promise<void>;
 }) {
   const [form, setForm] = useState({
     name: "",
@@ -1919,8 +2036,10 @@ function EntrancesView({
   async function handleInviteSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!createInvite) return;
-    await createInvite(inviteForm);
-    setInviteForm({ code: makeInviteCode(), role: "nova pessoa", maxUses: 1 });
+    const created = await createInvite(inviteForm);
+    if (created) {
+      setInviteForm({ code: makeInviteCode(), role: "nova pessoa", maxUses: 1 });
+    }
   }
 
   return (
@@ -1930,11 +2049,21 @@ function EntrancesView({
           <h3>Novo convite</h3>
           <div className="field-group">
             <label htmlFor="invite-new-code">Código</label>
-            <input
-              id="invite-new-code"
-              value={inviteForm.code}
-              onChange={(event) => setInviteForm({ ...inviteForm, code: event.target.value.toUpperCase() })}
-            />
+            <div className="copy-field">
+              <input
+                id="invite-new-code"
+                value={inviteForm.code}
+                onChange={(event) => setInviteForm({ ...inviteForm, code: event.target.value.toUpperCase() })}
+              />
+              <button
+                className="secondary-button copy-button"
+                type="button"
+                onClick={() => copyText(inviteForm.code, `Convite ${inviteForm.code} copiado.`)}
+              >
+                <Copy size={16} aria-hidden />
+                Copiar
+              </button>
+            </div>
           </div>
           <div className="field-pair">
             <div className="field-group">
@@ -1971,7 +2100,17 @@ function EntrancesView({
             {inviteCodes.map((invite) => (
               <article className="invite-code-row" key={invite.code}>
                 <strong>{invite.code}</strong>
-                <span>{invite.uses}/{invite.maxUses}</span>
+                <div className="invite-code-actions">
+                  <span>{invite.uses}/{invite.maxUses}</span>
+                  <button
+                    className="icon-only compact"
+                    type="button"
+                    onClick={() => copyText(invite.code, `Convite ${invite.code} copiado.`)}
+                    title="Copiar convite"
+                  >
+                    <Copy size={15} aria-hidden />
+                  </button>
+                </div>
                 <small>{memberById.get(invite.sponsorId ?? "")?.name ?? "sem padrinho"}</small>
               </article>
             ))}
