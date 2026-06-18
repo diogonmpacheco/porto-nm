@@ -1635,6 +1635,207 @@ button:disabled {
   min-height: 32px;
 }
 
+.hub-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.hub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 8px;
+}
+
+.hub-tabs .secondary-button {
+  min-height: 32px;
+}
+
+.memory-grid,
+.nocturno-card-list,
+.ritual-list {
+  display: grid;
+  gap: 10px;
+}
+
+.memory-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.soft-card {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.soft-card header,
+.soft-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.soft-card header {
+  justify-content: flex-start;
+}
+
+.soft-card p,
+.soft-card dl,
+.soft-card dd {
+  margin: 0;
+}
+
+.soft-card p {
+  color: #3d484b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.soft-card small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.compersion-board {
+  align-self: start;
+}
+
+.nocturno-shell {
+  padding: 10px;
+  background: #17171f;
+  border: 1px solid #2d2b3a;
+  border-radius: 8px;
+}
+
+.nocturno-shell .surface {
+  background: #20202b;
+  border-color: #333246;
+}
+
+.nocturno-shell .hub-tabs {
+  background: #20202b;
+}
+
+.nocturno-shell .secondary-button {
+  color: #f1c7d7;
+  background: #2b2431;
+  border-color: #4a3647;
+}
+
+.nocturno-shell .secondary-button.selected,
+.nocturno-shell .primary-button {
+  color: #19131a;
+  background: #f2b1c9;
+  border-color: #f2b1c9;
+}
+
+.nocturno-shell .field-group label,
+.nocturno-shell .check-fieldset legend,
+.nocturno-shell .surface-header h3,
+.nocturno-shell .surface-header svg,
+.nocturno-card strong,
+.nocturno-card dt {
+  color: #fff5f8;
+}
+
+.nocturno-shell input,
+.nocturno-shell textarea,
+.nocturno-shell select {
+  color: #fff7fb;
+  background: #17171f;
+  border-color: #424156;
+}
+
+.nocturno-grid {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.nocturno-panel {
+  align-self: start;
+}
+
+.nocturno-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  color: #f8eef3;
+  background: #20202b;
+  border: 1px solid #333246;
+  border-radius: 8px;
+}
+
+.nocturno-card header,
+.nocturno-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nocturno-card p {
+  margin: 0;
+  color: #d7c8d1;
+  line-height: 1.45;
+}
+
+.nocturno-card footer span,
+.nocturno-card a {
+  min-height: 24px;
+  padding: 4px 8px;
+  color: #17171f;
+  background: #f2b1c9;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.nocturno-card .small-pill {
+  color: #ffe2eb;
+  background: #3a2a39;
+  border-color: #594054;
+}
+
+.nocturno-card dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.nocturno-card dt {
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.nocturno-card dd {
+  margin: 0;
+  color: #d7c8d1;
+  font-size: 13px;
+}
+
+.provocation-card {
+  min-height: 96px;
+  align-content: center;
+}
+
+.tension-card header {
+  justify-content: flex-start;
+}
+
+.care-shell .care-panel {
+  max-width: 860px;
+}
+
 .connection-stack,
 .connection-card-list,
 .interest-grid,
@@ -1962,6 +2163,7 @@ button:disabled {
   .two-column,
   .profile-layout,
   .events-layout,
+  .nocturno-grid,
   .docs-layout,
   .admin-grid,
   .admin-grid.wide-left,
@@ -1970,6 +2172,10 @@ button:disabled {
   .groups-layout,
   .entrances-layout {
     grid-template-columns: 1fr;
+  }
+
+  .memory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2668,6 +2874,7 @@ button:disabled {
   .two-column,
   .profile-layout,
   .events-layout,
+  .nocturno-grid,
   .chat-layout,
   .docs-layout,
   .admin-grid,
@@ -2675,6 +2882,31 @@ button:disabled {
   .groups-layout,
   .entrances-layout {
     gap: 10px;
+  }
+
+  .memory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hub-tabs {
+    gap: 6px;
+    padding: 7px;
+  }
+
+  .hub-tabs .secondary-button {
+    flex: 1 1 126px;
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+
+  .nocturno-shell {
+    padding: 7px;
+  }
+
+  .nocturno-card,
+  .soft-card {
+    padding: 9px;
   }
 
   .surface {

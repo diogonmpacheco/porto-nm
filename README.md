@@ -35,6 +35,17 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Lista de apadrinhamento.
 - Visão rápida dos subgrupos.
 
+### Arquitectura de menus
+
+- **Hoje**: resumo e atalhos.
+- **Chat**: salas, media privada e citações.
+- **Agenda**: eventos, salas temporárias, check-ins e aftercare.
+- **Comunidade**: perfil, conexões, subgrupos, entradas e compersão.
+- **Memória**: documentos, decisões, acordos, leituras e rituais.
+- **Nocturno**: Eroteca, provocações, tensão mútua, fantasias e confessionário.
+- **Cuidado**: ciúme, reparação, saúde sexual e mediação.
+- **Admin**: moderação e gestão.
+
 ### Chat
 
 - Conversas por sala/subgrupo.
@@ -52,12 +63,14 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Cópia rápida de códigos de documentos/decisões.
 - Interface mobile simplificada, mais próxima de uma app de mensagens.
 
-### Perfil
+### Comunidade
 
+- Separadores para perfil, conexões, grupos, entradas e compersão.
 - Cada pessoa pode actualizar o próprio nome, pronomes e presença.
 - Upload de fotografia de perfil.
 - Fotografias de perfil ficam em storage privado.
 - Cartão de consentimento e preferências editável pelo próprio perfil.
+- Área de compersão para apreciações e momentos bons.
 
 ### Imagens privadas
 
@@ -77,10 +90,13 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Decisões com ata curta, decisão final, estado e votos.
 - Votos: `sim`, `não`, `abstenção`, `bloqueio`.
 - Decisões e documentos podem ser citados no chat com `@`.
+- Acordos vivos da comunidade.
+- Leituras e perguntas de discussão.
+- Rituais para dates, media íntima, festas e entradas novas.
 - Admins ou autores podem apagar conteúdos criados.
 - Feedback visual quando uma acção é guardada/copiada/apagada.
 
-### Eventos
+### Agenda
 
 - Lista de eventos visível por defeito.
 - Criação de evento escondida atrás do botão **Novo evento**.
@@ -112,6 +128,22 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Admins podem criar subgrupos.
 - Admins podem gerir membros de subgrupos.
 - Cada grupo tem cor e sala própria.
+
+### Nocturno
+
+- Zona de energia erótica e curadoria adulta.
+- **Eroteca** para links adultos com tags, aviso de conteúdo e nota de curadoria.
+- **Provocações** para prompts eróticos e conversas com tensão.
+- **Tensão mútua** ligada ao interesse recíproco de flirt.
+- **Fantasias** com mood, limites, modo e aftercare.
+- **Confessionário** com partilha anónima ou assinada.
+
+### Cuidado
+
+- **Ciúme Lab** para separar acontecimento, história interna e necessidade.
+- **Reparação** para preparar conversas de impacto, pedido e mediação.
+- **Saúde sexual** com cartões para testes, barreiras, disclosure e follow-up.
+- **Mediação** como estrutura de pedidos de ajuda e acompanhamento.
 
 ### Admin e moderação
 

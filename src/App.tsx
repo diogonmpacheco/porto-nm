@@ -40,7 +40,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
 type GroupPrivacy = "aberto" | "convite" | "secreto";
-type NavKey = "hoje" | "chat" | "perfil" | "eventos" | "docs" | "conexoes" | "grupos" | "entradas" | "admin";
+type NavKey = "hoje" | "chat" | "agenda" | "comunidade" | "memoria" | "nocturno" | "cuidado" | "admin";
 type EventVibe = "social" | "discussão" | "festa" | "íntimo" | "público";
 type PhotoPolicy = "sem fotos" | "perguntar primeiro" | "zonas comuns ok";
 type DecisionStatus = "rascunho" | "aberta" | "decidida";
@@ -55,6 +55,10 @@ type EncryptionStatus = "plain" | "encrypted" | "locked";
 type DeviceSecurityStatus = "off" | "creating" | "ready" | "error";
 type DirectPeerState = "connecting" | "open" | "closed" | "failed";
 type ConnectionTab = "intencoes" | "intros" | "interesses" | "privacidade";
+type CommunityTab = "perfil" | "conexoes" | "grupos" | "entradas" | "compersao";
+type MemoryTab = "docs" | "acordos" | "leituras" | "rituais";
+type NocturnoTab = "eroteca" | "provocacoes" | "tensao" | "fantasias" | "confessionario";
+type CareTab = "ciume" | "reparacao" | "saude" | "mediacao";
 
 type Member = {
   id: string;
@@ -3620,12 +3624,11 @@ function App() {
         <nav className={currentMember.role === "admin" ? "nav-list admin-nav" : "nav-list"} aria-label="Navegação principal">
           <NavButton id="hoje" active={activeNav} setActive={setActiveNav} icon={<CircleDot />} label="Hoje" />
           <NavButton id="chat" active={activeNav} setActive={setActiveNav} icon={<MessageCircle />} label="Chat" />
-          <NavButton id="perfil" active={activeNav} setActive={setActiveNav} icon={<User />} label="Perfil" />
-          <NavButton id="eventos" active={activeNav} setActive={setActiveNav} icon={<CalendarDays />} label="Eventos" />
-          <NavButton id="docs" active={activeNav} setActive={setActiveNav} icon={<BookOpenText />} label="Memória" />
-          <NavButton id="conexoes" active={activeNav} setActive={setActiveNav} icon={<HeartHandshake />} label="Conexões" />
-          <NavButton id="grupos" active={activeNav} setActive={setActiveNav} icon={<Users />} label="Grupos" />
-          <NavButton id="entradas" active={activeNav} setActive={setActiveNav} icon={<HandHeart />} label="Entradas" />
+          <NavButton id="agenda" active={activeNav} setActive={setActiveNav} icon={<CalendarDays />} label="Agenda" />
+          <NavButton id="comunidade" active={activeNav} setActive={setActiveNav} icon={<Users />} label="Comunidade" />
+          <NavButton id="memoria" active={activeNav} setActive={setActiveNav} icon={<BookOpenText />} label="Memória" />
+          <NavButton id="nocturno" active={activeNav} setActive={setActiveNav} icon={<Sparkles />} label="Nocturno" />
+          <NavButton id="cuidado" active={activeNav} setActive={setActiveNav} icon={<HeartHandshake />} label="Cuidado" />
           {currentMember.role === "admin" && (
             <NavButton id="admin" active={activeNav} setActive={setActiveNav} icon={<ShieldCheck />} label="Admin" />
           )}
@@ -3730,15 +3733,7 @@ function App() {
           />
         )}
 
-        {activeNav === "perfil" && (
-          <ProfileView
-            currentMember={currentMember}
-            updateOwnProfile={updateOwnProfile}
-            uploadProfilePhoto={uploadProfilePhoto}
-          />
-        )}
-
-        {activeNav === "eventos" && (
+        {activeNav === "agenda" && (
           <EventsView
             events={upcomingEvents}
             eventRooms={state.eventRooms}
@@ -3756,8 +3751,39 @@ function App() {
           />
         )}
 
-        {activeNav === "docs" && (
-          <DocsView
+        {activeNav === "comunidade" && (
+          <CommunityHub
+            members={state.members}
+            groups={state.groups}
+            memberById={memberById}
+            currentMember={currentMember}
+            backendMode={usingBackend}
+            inviteCodes={inviteCodes}
+            intentions={state.intentions}
+            introductions={state.introductions}
+            interests={state.interests}
+            relationships={state.relationships}
+            privacySettings={state.privacySettings}
+            updateOwnProfile={updateOwnProfile}
+            uploadProfilePhoto={uploadProfilePhoto}
+            updateIntention={updateIntention}
+            requestIntroduction={requestIntroduction}
+            updateIntroductionStatus={updateIntroductionStatus}
+            toggleInterest={toggleInterest}
+            addRelationship={addRelationship}
+            deleteRelationship={deleteRelationship}
+            updatePrivacySettings={updatePrivacySettings}
+            addGroup={addGroup}
+            toggleGroupMember={toggleGroupMember}
+            addMember={addMember}
+            createInvite={createInvite}
+            updateConsentCard={updateConsentCard}
+            copyText={copyText}
+          />
+        )}
+
+        {activeNav === "memoria" && (
+          <MemoryHub
             docs={filteredDocs}
             decisions={filteredDecisions}
             members={state.members}
@@ -3777,48 +3803,25 @@ function App() {
           />
         )}
 
-        {activeNav === "conexoes" && (
-          <ConnectionsView
+        {activeNav === "nocturno" && (
+          <NocturnoView
             members={state.members}
             currentMember={currentMember}
             memberById={memberById}
-            intentions={state.intentions}
-            introductions={state.introductions}
             interests={state.interests}
-            relationships={state.relationships}
-            privacySettings={state.privacySettings}
-            updateIntention={updateIntention}
-            requestIntroduction={requestIntroduction}
-            updateIntroductionStatus={updateIntroductionStatus}
             toggleInterest={toggleInterest}
-            addRelationship={addRelationship}
-            deleteRelationship={deleteRelationship}
-            updatePrivacySettings={updatePrivacySettings}
+            showNotice={showNotice}
           />
         )}
 
-        {activeNav === "grupos" && (
-          <GroupsView
-            groups={state.groups}
+        {activeNav === "cuidado" && (
+          <CareHub
             members={state.members}
-            memberById={memberById}
-            addGroup={addGroup}
-            toggleGroupMember={toggleGroupMember}
-          />
-        )}
-
-        {activeNav === "entradas" && (
-          <EntrancesView
-            members={state.members}
-            groups={state.groups}
-            memberById={memberById}
-            addMember={addMember}
-            backendMode={usingBackend}
             currentMember={currentMember}
-            inviteCodes={inviteCodes}
-            createInvite={createInvite}
-            updateConsentCard={updateConsentCard}
-            copyText={copyText}
+            memberById={memberById}
+            events={upcomingEvents}
+            eventCheckIns={state.eventCheckIns}
+            showNotice={showNotice}
           />
         )}
 
@@ -4064,7 +4067,7 @@ function Overview({
             icon={<CalendarDays />}
             title="Próximos eventos"
             actionLabel="Gerir"
-            onAction={() => setActiveNav("eventos")}
+            onAction={() => setActiveNav("agenda")}
           />
           <div className="item-list">
             {events.slice(0, 4).map((event) => (
@@ -4091,7 +4094,7 @@ function Overview({
             icon={<HandHeart />}
             title="Apadrinhamento"
             actionLabel="Entrada"
-            onAction={() => setActiveNav("entradas")}
+            onAction={() => setActiveNav("comunidade")}
           />
           <div className="sponsor-chain">
             {members.map((member) => (
@@ -4661,6 +4664,894 @@ function ChatView({
           )}
         </form>
       </section>
+    </section>
+  );
+}
+
+function HubTabButton<T extends string>({
+  id,
+  active,
+  setActive,
+  icon,
+  label,
+}: {
+  id: T;
+  active: T;
+  setActive: (id: T) => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      className={active === id ? "secondary-button selected" : "secondary-button"}
+      type="button"
+      role="tab"
+      aria-selected={active === id}
+      onClick={() => setActive(id)}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function CommunityHub({
+  members,
+  groups,
+  memberById,
+  currentMember,
+  backendMode,
+  inviteCodes,
+  intentions,
+  introductions,
+  interests,
+  relationships,
+  privacySettings,
+  updateOwnProfile,
+  uploadProfilePhoto,
+  updateIntention,
+  requestIntroduction,
+  updateIntroductionStatus,
+  toggleInterest,
+  addRelationship,
+  deleteRelationship,
+  updatePrivacySettings,
+  addGroup,
+  toggleGroupMember,
+  addMember,
+  createInvite,
+  updateConsentCard,
+  copyText,
+}: {
+  members: Member[];
+  groups: Group[];
+  memberById: Map<string, Member>;
+  currentMember: Member;
+  backendMode: boolean;
+  inviteCodes: InviteCode[];
+  intentions: MemberIntention[];
+  introductions: WarmIntroduction[];
+  interests: MutualInterest[];
+  relationships: RelationshipLink[];
+  privacySettings: PrivacySettings;
+  updateOwnProfile: (input: ProfileUpdateInput) => Promise<boolean>;
+  uploadProfilePhoto: (file: File) => Promise<boolean>;
+  updateIntention: (input: { kinds: IntentionKind[]; note: string }) => Promise<boolean>;
+  requestIntroduction: (input: { targetId: string; connectorId: string; note: string }) => Promise<boolean>;
+  updateIntroductionStatus: (introductionId: string, status: IntroductionStatus) => Promise<void>;
+  toggleInterest: (input: { targetId: string; kind: InterestKind }) => Promise<void>;
+  addRelationship: (input: {
+    relatedMemberId: string;
+    label: string;
+    visibility: RelationshipVisibility;
+  }) => Promise<boolean>;
+  deleteRelationship: (relationshipId: string) => Promise<void>;
+  updatePrivacySettings: (input: PrivacySettings) => Promise<boolean>;
+  addGroup: (input: { name: string; focus: string; privacy: GroupPrivacy; stewardId: string }) => Promise<boolean>;
+  toggleGroupMember: (groupId: string, memberId: string) => void;
+  addMember: (input: { name: string; pronouns: string; sponsorId: string; groupIds: string[] }) => void;
+  createInvite?: (input: { code: string; role: MemberRole; maxUses: number }) => Promise<boolean>;
+  updateConsentCard: (input: {
+    memberId: string;
+    consentAvailableFor: string;
+    consentLimits: string;
+    mediaPreference: string;
+    relationshipContext: string;
+    eventComfort: string;
+  }) => Promise<boolean>;
+  copyText: (value: string, message: string) => Promise<void>;
+}) {
+  const [activeTab, setActiveTab] = useState<CommunityTab>("perfil");
+
+  return (
+    <section className="hub-shell">
+      <div className="hub-tabs surface" role="tablist" aria-label="Comunidade">
+        <HubTabButton id="perfil" active={activeTab} setActive={setActiveTab} icon={<User size={15} aria-hidden />} label="Perfil" />
+        <HubTabButton id="conexoes" active={activeTab} setActive={setActiveTab} icon={<HeartHandshake size={15} aria-hidden />} label="Conexões" />
+        <HubTabButton id="grupos" active={activeTab} setActive={setActiveTab} icon={<Users size={15} aria-hidden />} label="Grupos" />
+        <HubTabButton id="entradas" active={activeTab} setActive={setActiveTab} icon={<HandHeart size={15} aria-hidden />} label="Entradas" />
+        <HubTabButton id="compersao" active={activeTab} setActive={setActiveTab} icon={<Sparkles size={15} aria-hidden />} label="Compersão" />
+      </div>
+
+      {activeTab === "perfil" && (
+        <ProfileView
+          currentMember={currentMember}
+          updateOwnProfile={updateOwnProfile}
+          uploadProfilePhoto={uploadProfilePhoto}
+        />
+      )}
+
+      {activeTab === "conexoes" && (
+        <ConnectionsView
+          members={members}
+          currentMember={currentMember}
+          memberById={memberById}
+          intentions={intentions}
+          introductions={introductions}
+          interests={interests}
+          relationships={relationships}
+          privacySettings={privacySettings}
+          updateIntention={updateIntention}
+          requestIntroduction={requestIntroduction}
+          updateIntroductionStatus={updateIntroductionStatus}
+          toggleInterest={toggleInterest}
+          addRelationship={addRelationship}
+          deleteRelationship={deleteRelationship}
+          updatePrivacySettings={updatePrivacySettings}
+        />
+      )}
+
+      {activeTab === "grupos" && (
+        <GroupsView groups={groups} members={members} memberById={memberById} addGroup={addGroup} toggleGroupMember={toggleGroupMember} />
+      )}
+
+      {activeTab === "entradas" && (
+        <EntrancesView
+          members={members}
+          groups={groups}
+          memberById={memberById}
+          addMember={addMember}
+          backendMode={backendMode}
+          currentMember={currentMember}
+          inviteCodes={inviteCodes}
+          createInvite={createInvite}
+          updateConsentCard={updateConsentCard}
+          copyText={copyText}
+        />
+      )}
+
+      {activeTab === "compersao" && <CompersionView members={members} currentMember={currentMember} memberById={memberById} />}
+    </section>
+  );
+}
+
+function CompersionView({
+  members,
+  currentMember,
+  memberById,
+}: {
+  members: Member[];
+  currentMember: Member;
+  memberById: Map<string, Member>;
+}) {
+  const otherMembers = members.filter((member) => member.id !== currentMember.id);
+  const [targetId, setTargetId] = useState(otherMembers[0]?.id ?? currentMember.id);
+  const [note, setNote] = useState("");
+  const [notes, setNotes] = useState([
+    {
+      id: "comp_1",
+      fromId: "demo_ines",
+      toId: "demo_carolina",
+      note: "Obrigada pela forma como acolheste a conversa sem pressa.",
+      createdAt: "2026-06-18T18:40:00",
+    },
+    {
+      id: "comp_2",
+      fromId: "demo_joao",
+      toId: "m_ana",
+      note: "Foi bonito ver o cuidado com que preparaste o pós-evento.",
+      createdAt: "2026-06-18T19:05:00",
+    },
+  ]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!note.trim()) return;
+    setNotes((current) => [
+      {
+        id: crypto.randomUUID(),
+        fromId: currentMember.id,
+        toId: targetId,
+        note: note.trim(),
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+    setNote("");
+  }
+
+  return (
+    <section className="split-layout">
+      <form className="surface form-panel" onSubmit={handleSubmit}>
+        <SurfaceHeader icon={<Sparkles />} title="Apreciação" />
+        <div className="field-group">
+          <label htmlFor="compersion-target">Pessoa</label>
+          <select id="compersion-target" value={targetId} onChange={(event) => setTargetId(event.target.value)}>
+            {otherMembers.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field-group">
+          <label htmlFor="compersion-note">Nota</label>
+          <textarea id="compersion-note" rows={5} value={note} onChange={(event) => setNote(event.target.value)} />
+        </div>
+        <button className="primary-button" type="submit">
+          <Sparkles size={17} aria-hidden />
+          Guardar
+        </button>
+      </form>
+
+      <section className="surface compersion-board">
+        <SurfaceHeader icon={<Heart />} title="Momentos bons" />
+        <div className="ritual-list">
+          {notes.map((entry) => (
+            <article className="soft-card" key={entry.id}>
+              <header>
+                <strong>{memberById.get(entry.fromId)?.name ?? "Pessoa"}</strong>
+                <span>para {memberById.get(entry.toId)?.name ?? "alguém"}</span>
+              </header>
+              <p>{entry.note}</p>
+              <small>{formatClock(entry.createdAt)}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function MemoryHub({
+  docs,
+  decisions,
+  members,
+  currentMember,
+  memberById,
+  search,
+  setSearch,
+  selectedCitation,
+  setSelectedCitation,
+  addDoc,
+  addDecision,
+  voteDecision,
+  deleteDecision,
+  deleteDoc,
+  copyText,
+  showNotice,
+}: {
+  docs: CommunityDoc[];
+  decisions: DecisionRecord[];
+  members: Member[];
+  currentMember: Member;
+  memberById: Map<string, Member>;
+  search: string;
+  setSearch: (value: string) => void;
+  selectedCitation: string;
+  setSelectedCitation: (code: string) => void;
+  addDoc: (input: { title: string; summary: string; tags: string }) => Promise<boolean>;
+  addDecision: (input: {
+    title: string;
+    summary: string;
+    outcome: string;
+    status: DecisionStatus;
+  }) => Promise<boolean>;
+  voteDecision: (decisionId: string, vote: DecisionVote) => Promise<void>;
+  deleteDecision: (decisionId: string) => Promise<void>;
+  deleteDoc: (docId: string) => Promise<void>;
+  copyText: (value: string, message: string) => Promise<void>;
+  showNotice: (message: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<MemoryTab>("docs");
+
+  return (
+    <section className="hub-shell">
+      <div className="hub-tabs surface" role="tablist" aria-label="Memória">
+        <HubTabButton id="docs" active={activeTab} setActive={setActiveTab} icon={<BookOpenText size={15} aria-hidden />} label="Docs e decisões" />
+        <HubTabButton id="acordos" active={activeTab} setActive={setActiveTab} icon={<ShieldCheck size={15} aria-hidden />} label="Acordos" />
+        <HubTabButton id="leituras" active={activeTab} setActive={setActiveTab} icon={<BookOpenText size={15} aria-hidden />} label="Leituras" />
+        <HubTabButton id="rituais" active={activeTab} setActive={setActiveTab} icon={<HandHeart size={15} aria-hidden />} label="Rituais" />
+      </div>
+
+      {activeTab === "docs" && (
+        <DocsView
+          docs={docs}
+          decisions={decisions}
+          members={members}
+          currentMember={currentMember}
+          memberById={memberById}
+          search={search}
+          setSearch={setSearch}
+          selectedCitation={selectedCitation}
+          setSelectedCitation={setSelectedCitation}
+          addDoc={addDoc}
+          addDecision={addDecision}
+          voteDecision={voteDecision}
+          deleteDecision={deleteDecision}
+          deleteDoc={deleteDoc}
+          copyText={copyText}
+          showNotice={showNotice}
+        />
+      )}
+
+      {activeTab === "acordos" && <AgreementsView copyText={copyText} />}
+      {activeTab === "leituras" && <ReadingsView />}
+      {activeTab === "rituais" && <RitualsView />}
+    </section>
+  );
+}
+
+function AgreementsView({ copyText }: { copyText: (value: string, message: string) => Promise<void> }) {
+  const agreements = [
+    {
+      title: "Fotos em eventos íntimos",
+      status: "activo",
+      review: "rever em 30 dias",
+      text: "Sem fotografias em eventos íntimos. Em eventos sociais, perguntar antes e aceitar um não sem debate.",
+    },
+    {
+      title: "Apresentações quentes",
+      status: "activo",
+      review: "rever mensalmente",
+      text: "Pedidos de contacto novo passam por uma pessoa ponte quando existe relação prévia.",
+    },
+    {
+      title: "Media íntima",
+      status: "rascunho",
+      review: "precisa decisão",
+      text: "Imagens sensíveis devem usar envelope privado, expiração e consentimento explícito antes de abrir.",
+    },
+  ];
+
+  return (
+    <section className="memory-grid">
+      {agreements.map((agreement) => (
+        <article className="surface soft-card" key={agreement.title}>
+          <header>
+            <strong>{agreement.title}</strong>
+            <span className="small-pill">{agreement.status}</span>
+          </header>
+          <p>{agreement.text}</p>
+          <footer>
+            <span>{agreement.review}</span>
+            <button className="icon-only compact" type="button" onClick={() => copyText(agreement.text, "Acordo copiado.")} title="Copiar acordo">
+              <Copy size={14} aria-hidden />
+            </button>
+          </footer>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function ReadingsView() {
+  const readings = [
+    {
+      title: "The Ethical Slut",
+      theme: "bases, autonomia e honestidade radical",
+      prompt: "Que acordo teu mudou quando deixaste de tentar controlar tudo?",
+    },
+    {
+      title: "Polysecure",
+      theme: "apego, segurança e múltiplas relações",
+      prompt: "Que gesto te faz sentir seguro/a antes de uma conversa difícil?",
+    },
+    {
+      title: "Come As You Are",
+      theme: "desejo, contexto e resposta sexual",
+      prompt: "Que contexto torna o teu desejo mais disponível?",
+    },
+  ];
+
+  return (
+    <section className="memory-grid">
+      {readings.map((reading) => (
+        <article className="surface soft-card" key={reading.title}>
+          <header>
+            <BookOpenText size={18} aria-hidden />
+            <strong>{reading.title}</strong>
+          </header>
+          <span className="small-pill">{reading.theme}</span>
+          <p>{reading.prompt}</p>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function RitualsView() {
+  const rituals = [
+    ["Antes de um date", "intenções, limites, safer sex, saída confortável"],
+    ["Antes de enviar media", "consentimento, contexto, expiração, não reenviar"],
+    ["Depois de uma festa", "check-in, aftercare, reparação se algo ficou estranho"],
+    ["Entrada nova", "padrinho/madrinha, docs essenciais, primeiro evento, check-in"],
+  ];
+
+  return (
+    <section className="memory-grid">
+      {rituals.map(([title, text]) => (
+        <article className="surface soft-card" key={title}>
+          <header>
+            <HandHeart size={18} aria-hidden />
+            <strong>{title}</strong>
+          </header>
+          <p>{text}</p>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function NocturnoView({
+  members,
+  currentMember,
+  memberById,
+  interests,
+  toggleInterest,
+  showNotice,
+}: {
+  members: Member[];
+  currentMember: Member;
+  memberById: Map<string, Member>;
+  interests: MutualInterest[];
+  toggleInterest: (input: { targetId: string; kind: InterestKind }) => Promise<void>;
+  showNotice: (message: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<NocturnoTab>("eroteca");
+  const otherMembers = members.filter((member) => member.id !== currentMember.id);
+  const [erotecaLinks, setErotecaLinks] = useState([
+    {
+      id: "ero_1",
+      title: "Erika Lust - cinema adulto ético",
+      url: "https://erikalust.com",
+      tags: ["ético", "cinema", "queer"],
+      warning: "conteúdo explícito",
+      note: "Boa curadoria, diversidade de corpos e contexto.",
+    },
+    {
+      id: "ero_2",
+      title: "Bellesa",
+      url: "https://www.bellesa.co",
+      tags: ["curadoria", "artigos", "porn"],
+      warning: "conteúdo adulto",
+      note: "Útil para partilhar links com algum enquadramento.",
+    },
+  ]);
+  const [linkForm, setLinkForm] = useState({ title: "", url: "", tags: "", warning: "", note: "" });
+  const [provocations, setProvocations] = useState([
+    "Um tipo de mensagem que me deixa curioso/a...",
+    "Uma fantasia que gosto de nomear sem prometer explorar...",
+    "O meu sim mais bonito começa quando...",
+  ]);
+  const [provocationDraft, setProvocationDraft] = useState("");
+  const [fantasies, setFantasies] = useState([
+    {
+      id: "fan_1",
+      title: "Lento, vestido, sem pressa",
+      mood: "tensão suave",
+      mode: "quero conversar",
+      limits: "sem surpresa, sem público",
+      aftercare: "mensagem no dia seguinte",
+    },
+    {
+      id: "fan_2",
+      title: "Ser observado/a com consentimento",
+      mood: "voyeur/exibição",
+      mode: "só partilhar",
+      limits: "sem gravação",
+      aftercare: "check-in privado",
+    },
+  ]);
+  const [fantasyForm, setFantasyForm] = useState({ title: "", mood: "", mode: "quero conversar", limits: "", aftercare: "" });
+  const [confessions, setConfessions] = useState([
+    {
+      id: "conf_1",
+      signed: false,
+      body: "Às vezes excita-me mais a conversa honesta antes do toque do que o toque em si.",
+      open: true,
+    },
+    {
+      id: "conf_2",
+      signed: true,
+      body: "Quero aprender a flirtar sem me esconder atrás de ironia.",
+      open: false,
+    },
+  ]);
+  const [confessionForm, setConfessionForm] = useState({ body: "", signed: false, open: true });
+
+  function handleErotecaSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!linkForm.title.trim() || !linkForm.url.trim()) return;
+    setErotecaLinks((current) => [
+      {
+        id: crypto.randomUUID(),
+        title: linkForm.title.trim(),
+        url: linkForm.url.trim(),
+        tags: linkForm.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+        warning: linkForm.warning.trim() || "conteúdo adulto",
+        note: linkForm.note.trim(),
+      },
+      ...current,
+    ]);
+    setLinkForm({ title: "", url: "", tags: "", warning: "", note: "" });
+    showNotice("Link guardado na Eroteca.");
+  }
+
+  function handleProvocationSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!provocationDraft.trim()) return;
+    setProvocations((current) => [provocationDraft.trim(), ...current]);
+    setProvocationDraft("");
+  }
+
+  function handleFantasySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!fantasyForm.title.trim()) return;
+    setFantasies((current) => [{ id: crypto.randomUUID(), ...fantasyForm }, ...current]);
+    setFantasyForm({ title: "", mood: "", mode: "quero conversar", limits: "", aftercare: "" });
+    showNotice("Fantasia guardada.");
+  }
+
+  function handleConfessionSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!confessionForm.body.trim()) return;
+    setConfessions((current) => [{ id: crypto.randomUUID(), ...confessionForm }, ...current]);
+    setConfessionForm({ body: "", signed: false, open: true });
+  }
+
+  return (
+    <section className="hub-shell nocturno-shell">
+      <div className="hub-tabs nocturno-tabs surface" role="tablist" aria-label="Nocturno">
+        <HubTabButton id="eroteca" active={activeTab} setActive={setActiveTab} icon={<BookOpenText size={15} aria-hidden />} label="Eroteca" />
+        <HubTabButton id="provocacoes" active={activeTab} setActive={setActiveTab} icon={<Sparkles size={15} aria-hidden />} label="Provocações" />
+        <HubTabButton id="tensao" active={activeTab} setActive={setActiveTab} icon={<Heart size={15} aria-hidden />} label="Tensão mútua" />
+        <HubTabButton id="fantasias" active={activeTab} setActive={setActiveTab} icon={<Eye size={15} aria-hidden />} label="Fantasias" />
+        <HubTabButton id="confessionario" active={activeTab} setActive={setActiveTab} icon={<LockKeyhole size={15} aria-hidden />} label="Confessionário" />
+      </div>
+
+      {activeTab === "eroteca" && (
+        <section className="nocturno-grid">
+          <form className="surface form-panel nocturno-panel" onSubmit={handleErotecaSubmit}>
+            <SurfaceHeader icon={<BookOpenText />} title="Novo link" />
+            <div className="field-group">
+              <label htmlFor="eroteca-title">Título</label>
+              <input id="eroteca-title" value={linkForm.title} onChange={(event) => setLinkForm({ ...linkForm, title: event.target.value })} />
+            </div>
+            <div className="field-group">
+              <label htmlFor="eroteca-url">URL</label>
+              <input id="eroteca-url" value={linkForm.url} onChange={(event) => setLinkForm({ ...linkForm, url: event.target.value })} />
+            </div>
+            <div className="field-pair">
+              <div className="field-group">
+                <label htmlFor="eroteca-tags">Tags</label>
+                <input id="eroteca-tags" value={linkForm.tags} onChange={(event) => setLinkForm({ ...linkForm, tags: event.target.value })} />
+              </div>
+              <div className="field-group">
+                <label htmlFor="eroteca-warning">Aviso</label>
+                <input id="eroteca-warning" value={linkForm.warning} onChange={(event) => setLinkForm({ ...linkForm, warning: event.target.value })} />
+              </div>
+            </div>
+            <div className="field-group">
+              <label htmlFor="eroteca-note">Porque vale a pena</label>
+              <textarea id="eroteca-note" rows={3} value={linkForm.note} onChange={(event) => setLinkForm({ ...linkForm, note: event.target.value })} />
+            </div>
+            <button className="primary-button" type="submit">
+              <Plus size={17} aria-hidden />
+              Guardar link
+            </button>
+          </form>
+          <section className="nocturno-card-list">
+            {erotecaLinks.map((link) => (
+              <article className="surface nocturno-card" key={link.id}>
+                <header>
+                  <strong>{link.title}</strong>
+                  <span className="small-pill">{link.warning}</span>
+                </header>
+                <p>{link.note}</p>
+                <footer>
+                  {link.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                  <a href={link.url} target="_blank" rel="noreferrer">abrir</a>
+                </footer>
+              </article>
+            ))}
+          </section>
+        </section>
+      )}
+
+      {activeTab === "provocacoes" && (
+        <section className="split-layout">
+          <form className="surface form-panel nocturno-panel" onSubmit={handleProvocationSubmit}>
+            <SurfaceHeader icon={<Sparkles />} title="Nova provocação" />
+            <div className="field-group">
+              <label htmlFor="provocation-draft">Frase</label>
+              <textarea id="provocation-draft" rows={5} value={provocationDraft} onChange={(event) => setProvocationDraft(event.target.value)} />
+            </div>
+            <button className="primary-button" type="submit">
+              <Sparkles size={17} aria-hidden />
+              Lançar
+            </button>
+          </form>
+          <section className="nocturno-card-list">
+            {provocations.map((provocation) => (
+              <article className="surface nocturno-card provocation-card" key={provocation}>
+                <Sparkles size={18} aria-hidden />
+                <p>{provocation}</p>
+              </article>
+            ))}
+          </section>
+        </section>
+      )}
+
+      {activeTab === "tensao" && (
+        <section className="interest-grid">
+          {otherMembers.map((member) => {
+            const active = interests.some((interest) => interest.fromId === currentMember.id && interest.toId === member.id && interest.kind === "flirt");
+            const mutual = active && interests.some((interest) => interest.fromId === member.id && interest.toId === currentMember.id && interest.kind === "flirt");
+            return (
+              <article className="surface nocturno-card tension-card" key={member.id}>
+                <header>
+                  <MemberAvatar member={member} />
+                  <div>
+                    <strong>{member.name}</strong>
+                    <p>{member.mediaPreference || member.relationshipContext || member.pronouns}</p>
+                  </div>
+                </header>
+                <button className={active ? "secondary-button selected" : "secondary-button"} type="button" onClick={() => toggleInterest({ targetId: member.id, kind: "flirt" })}>
+                  <Heart size={16} aria-hidden />
+                  {mutual ? "Tensão mútua" : active ? "Sinal enviado" : "Tenho curiosidade"}
+                </button>
+              </article>
+            );
+          })}
+        </section>
+      )}
+
+      {activeTab === "fantasias" && (
+        <section className="nocturno-grid">
+          <form className="surface form-panel nocturno-panel" onSubmit={handleFantasySubmit}>
+            <SurfaceHeader icon={<Eye />} title="Nova fantasia" />
+            <div className="field-group">
+              <label htmlFor="fantasy-title">Título</label>
+              <input id="fantasy-title" value={fantasyForm.title} onChange={(event) => setFantasyForm({ ...fantasyForm, title: event.target.value })} />
+            </div>
+            <div className="field-pair">
+              <div className="field-group">
+                <label htmlFor="fantasy-mood">Mood</label>
+                <input id="fantasy-mood" value={fantasyForm.mood} onChange={(event) => setFantasyForm({ ...fantasyForm, mood: event.target.value })} />
+              </div>
+              <div className="field-group">
+                <label htmlFor="fantasy-mode">Modo</label>
+                <select id="fantasy-mode" value={fantasyForm.mode} onChange={(event) => setFantasyForm({ ...fantasyForm, mode: event.target.value })}>
+                  <option value="só partilhar">só partilhar</option>
+                  <option value="quero conversar">quero conversar</option>
+                  <option value="quero explorar">quero explorar</option>
+                </select>
+              </div>
+            </div>
+            <div className="field-group">
+              <label htmlFor="fantasy-limits">Limites</label>
+              <input id="fantasy-limits" value={fantasyForm.limits} onChange={(event) => setFantasyForm({ ...fantasyForm, limits: event.target.value })} />
+            </div>
+            <div className="field-group">
+              <label htmlFor="fantasy-aftercare">Aftercare</label>
+              <input id="fantasy-aftercare" value={fantasyForm.aftercare} onChange={(event) => setFantasyForm({ ...fantasyForm, aftercare: event.target.value })} />
+            </div>
+            <button className="primary-button" type="submit">
+              <Plus size={17} aria-hidden />
+              Guardar
+            </button>
+          </form>
+          <section className="nocturno-card-list">
+            {fantasies.map((fantasy) => (
+              <article className="surface nocturno-card" key={fantasy.id}>
+                <header>
+                  <strong>{fantasy.title}</strong>
+                  <span className="small-pill">{fantasy.mode}</span>
+                </header>
+                <p>{fantasy.mood}</p>
+                <dl>
+                  <div><dt>Limites</dt><dd>{fantasy.limits || "por preencher"}</dd></div>
+                  <div><dt>Aftercare</dt><dd>{fantasy.aftercare || "por preencher"}</dd></div>
+                </dl>
+              </article>
+            ))}
+          </section>
+        </section>
+      )}
+
+      {activeTab === "confessionario" && (
+        <section className="nocturno-grid">
+          <form className="surface form-panel nocturno-panel" onSubmit={handleConfessionSubmit}>
+            <SurfaceHeader icon={<LockKeyhole />} title="Nova confissão" />
+            <div className="field-group">
+              <label htmlFor="confession-body">Texto</label>
+              <textarea id="confession-body" rows={6} value={confessionForm.body} onChange={(event) => setConfessionForm({ ...confessionForm, body: event.target.value })} />
+            </div>
+            <label className="privacy-toggle">
+              <input type="checkbox" checked={confessionForm.signed} onChange={(event) => setConfessionForm({ ...confessionForm, signed: event.target.checked })} />
+              <span>assinar</span>
+            </label>
+            <label className="privacy-toggle">
+              <input type="checkbox" checked={confessionForm.open} onChange={(event) => setConfessionForm({ ...confessionForm, open: event.target.checked })} />
+              <span>aberto a conversa</span>
+            </label>
+            <button className="primary-button" type="submit">
+              <LockKeyhole size={17} aria-hidden />
+              Guardar
+            </button>
+          </form>
+          <section className="nocturno-card-list">
+            {confessions.map((confession) => (
+              <article className="surface nocturno-card confession-card" key={confession.id}>
+                <header>
+                  <strong>{confession.signed ? currentMember.name : "Anónimo"}</strong>
+                  <span className="small-pill">{confession.open ? "aberto" : "só partilha"}</span>
+                </header>
+                <p>{confession.body}</p>
+              </article>
+            ))}
+          </section>
+        </section>
+      )}
+    </section>
+  );
+}
+
+function CareHub({
+  members,
+  currentMember,
+  memberById,
+  events,
+  eventCheckIns,
+  showNotice,
+}: {
+  members: Member[];
+  currentMember: Member;
+  memberById: Map<string, Member>;
+  events: EventItem[];
+  eventCheckIns: EventCheckIn[];
+  showNotice: (message: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<CareTab>("ciume");
+  const otherMembers = members.filter((member) => member.id !== currentMember.id);
+  const [jealousyForm, setJealousyForm] = useState({ happened: "", story: "", need: "reasseguramento", shareWith: "" });
+  const [repairForm, setRepairForm] = useState({ personId: otherMembers[0]?.id ?? "", impact: "", request: "", mediatorId: "" });
+  const sensitiveCheckIns = eventCheckIns.filter((checkIn) => checkIn.mood === "atenção" || checkIn.visibility !== "comunidade");
+
+  function submitCare(event: FormEvent<HTMLFormElement>, message: string) {
+    event.preventDefault();
+    showNotice(message);
+  }
+
+  return (
+    <section className="hub-shell care-shell">
+      <div className="hub-tabs surface" role="tablist" aria-label="Cuidado">
+        <HubTabButton id="ciume" active={activeTab} setActive={setActiveTab} icon={<Heart size={15} aria-hidden />} label="Ciúme Lab" />
+        <HubTabButton id="reparacao" active={activeTab} setActive={setActiveTab} icon={<HeartHandshake size={15} aria-hidden />} label="Reparação" />
+        <HubTabButton id="saude" active={activeTab} setActive={setActiveTab} icon={<ShieldCheck size={15} aria-hidden />} label="Saúde sexual" />
+        <HubTabButton id="mediacao" active={activeTab} setActive={setActiveTab} icon={<HandHeart size={15} aria-hidden />} label="Mediação" />
+      </div>
+
+      {activeTab === "ciume" && (
+        <form className="surface form-panel care-panel" onSubmit={(event) => submitCare(event, "Reflexão guardada.")}>
+          <SurfaceHeader icon={<Heart />} title="Ciúme Lab" />
+          <div className="field-group">
+            <label htmlFor="jealousy-happened">O que aconteceu</label>
+            <textarea id="jealousy-happened" rows={3} value={jealousyForm.happened} onChange={(event) => setJealousyForm({ ...jealousyForm, happened: event.target.value })} />
+          </div>
+          <div className="field-group">
+            <label htmlFor="jealousy-story">A história que estou a contar</label>
+            <textarea id="jealousy-story" rows={3} value={jealousyForm.story} onChange={(event) => setJealousyForm({ ...jealousyForm, story: event.target.value })} />
+          </div>
+          <div className="field-pair">
+            <div className="field-group">
+              <label htmlFor="jealousy-need">Preciso de</label>
+              <select id="jealousy-need" value={jealousyForm.need} onChange={(event) => setJealousyForm({ ...jealousyForm, need: event.target.value })}>
+                <option value="reasseguramento">reasseguramento</option>
+                <option value="espaco">espaço</option>
+                <option value="informacao">informação</option>
+                <option value="toque">toque</option>
+                <option value="reparacao">reparação</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="jealousy-share">Partilhar com</label>
+              <select id="jealousy-share" value={jealousyForm.shareWith} onChange={(event) => setJealousyForm({ ...jealousyForm, shareWith: event.target.value })}>
+                <option value="">só eu</option>
+                {otherMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <button className="primary-button" type="submit">
+            <Check size={17} aria-hidden />
+            Guardar
+          </button>
+        </form>
+      )}
+
+      {activeTab === "reparacao" && (
+        <section className="split-layout">
+          <form className="surface form-panel care-panel" onSubmit={(event) => submitCare(event, "Pedido de reparação preparado.")}>
+            <SurfaceHeader icon={<HeartHandshake />} title="Pedido de reparação" />
+            <div className="field-group">
+              <label htmlFor="repair-person">Pessoa</label>
+              <select id="repair-person" value={repairForm.personId} onChange={(event) => setRepairForm({ ...repairForm, personId: event.target.value })}>
+                {otherMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="repair-impact">Impacto</label>
+              <textarea id="repair-impact" rows={3} value={repairForm.impact} onChange={(event) => setRepairForm({ ...repairForm, impact: event.target.value })} />
+            </div>
+            <div className="field-group">
+              <label htmlFor="repair-request">Pedido</label>
+              <textarea id="repair-request" rows={3} value={repairForm.request} onChange={(event) => setRepairForm({ ...repairForm, request: event.target.value })} />
+            </div>
+            <button className="primary-button" type="submit">
+              <HandHeart size={17} aria-hidden />
+              Preparar
+            </button>
+          </form>
+          <section className="surface">
+            <SurfaceHeader icon={<ClipboardCheck />} title="Sinais a acompanhar" />
+            <div className="ritual-list">
+              {sensitiveCheckIns.slice(0, 6).map((checkIn) => (
+                <article className="soft-card" key={checkIn.id}>
+                  <header>
+                    <strong>{memberById.get(checkIn.memberId)?.name}</strong>
+                    <span className="small-pill">{checkIn.mood}</span>
+                  </header>
+                  <p>{events.find((event) => event.id === checkIn.eventId)?.title ?? "Evento"}</p>
+                  <small>{checkIn.note || "sem nota"}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+        </section>
+      )}
+
+      {activeTab === "saude" && (
+        <section className="memory-grid">
+          {[
+            ["Último teste", "data opcional e privada por pessoa"],
+            ["Barreiras", "preferências de preservativo, luva, dental dam e lubrificante"],
+            ["Disclosure", "templates para conversas antes de encontro"],
+            ["Depois", "check-in de sintomas, sustos ou mudança de acordo"],
+          ].map(([title, text]) => (
+            <article className="surface soft-card" key={title}>
+              <header><ShieldCheck size={18} aria-hidden /><strong>{title}</strong></header>
+              <p>{text}</p>
+            </article>
+          ))}
+        </section>
+      )}
+
+      {activeTab === "mediacao" && (
+        <section className="memory-grid">
+          {[
+            ["Pedir ajuda", "criar pedido privado para admins/mediadores"],
+            ["Definir severidade", "baixo, médio, urgente"],
+            ["Atribuir pessoa", "responsável interno com notas privadas"],
+            ["Fechar com cuidado", "resultado, reparação e próximos passos"],
+          ].map(([title, text]) => (
+            <article className="surface soft-card" key={title}>
+              <header><HandHeart size={18} aria-hidden /><strong>{title}</strong></header>
+              <p>{text}</p>
+            </article>
+          ))}
+        </section>
+      )}
     </section>
   );
 }
@@ -6480,7 +7371,7 @@ function AdminView({
       title: `Nova entrada: ${member.name}`,
       detail: `Padrinhe: ${member.sponsorId ? memberById.get(member.sponsorId)?.name : "sem vínculo"}`,
       action: "Entradas",
-      onAction: () => setActiveNav("entradas"),
+      onAction: () => setActiveNav("comunidade"),
     })),
     ...pendingIntroductions.map((intro) => ({
       id: `intro-${intro.id}`,
@@ -6496,7 +7387,7 @@ function AdminView({
       title: `${memberById.get(checkIn.memberId)?.name} marcou ${checkIn.mood}`,
       detail: `${events.find((event) => event.id === checkIn.eventId)?.title ?? "Evento"} · ${checkIn.note || "sem nota"}`,
       action: "Eventos",
-      onAction: () => setActiveNav("eventos"),
+      onAction: () => setActiveNav("agenda"),
     })),
     ...openDecisions.map((decision) => ({
       id: `decision-${decision.id}`,
@@ -6504,7 +7395,7 @@ function AdminView({
       title: `${decision.code} ainda ${decision.status}`,
       detail: decision.title,
       action: "Memória",
-      onAction: () => setActiveNav("docs"),
+      onAction: () => setActiveNav("memoria"),
     })),
     ...expiredRooms.map((room) => ({
       id: `room-${room.id}`,
@@ -6520,7 +7411,7 @@ function AdminView({
       title: `${member.name} tem cartão incompleto`,
       detail: "Faltam limites, disponibilidade ou media.",
       action: "Entradas",
-      onAction: () => setActiveNav("entradas"),
+      onAction: () => setActiveNav("comunidade"),
     })),
   ];
 
@@ -6679,7 +7570,7 @@ function AdminView({
 
       <section className="admin-grid thirds">
         <section className="surface admin-panel">
-          <SurfaceHeader icon={<CalendarDays />} title="Eventos" actionLabel="Abrir" onAction={() => setActiveNav("eventos")} />
+          <SurfaceHeader icon={<CalendarDays />} title="Eventos" actionLabel="Abrir" onAction={() => setActiveNav("agenda")} />
           <div className="admin-content-list">
             {soonEvents.map((event) => (
               <article className="admin-content-row" key={event.id}>
@@ -6706,7 +7597,7 @@ function AdminView({
         </section>
 
         <section className="surface admin-panel">
-          <SurfaceHeader icon={<BookOpenText />} title="Memória" actionLabel="Abrir" onAction={() => setActiveNav("docs")} />
+          <SurfaceHeader icon={<BookOpenText />} title="Memória" actionLabel="Abrir" onAction={() => setActiveNav("memoria")} />
           <div className="admin-content-list">
             {recentDecisions.slice(0, 3).map((decision) => (
               <article className="admin-content-row" key={decision.id}>
@@ -7253,12 +8144,11 @@ function navTitle(nav: NavKey) {
   const titles: Record<NavKey, string> = {
     hoje: "Hoje",
     chat: "Chat",
-    perfil: "Perfil",
-    eventos: "Eventos",
-    docs: "Memória e decisões",
-    conexoes: "Conexões e confiança",
-    grupos: "Comunidade e subgrupos",
-    entradas: "Apadrinhamento",
+    agenda: "Agenda",
+    comunidade: "Comunidade",
+    memoria: "Memória",
+    nocturno: "Nocturno",
+    cuidado: "Cuidado",
     admin: "Admin e moderação",
   };
   return titles[nav];
