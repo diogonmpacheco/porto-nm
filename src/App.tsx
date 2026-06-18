@@ -109,6 +109,7 @@ type InviteCode = {
 
 type MessageInput = {
   body: string;
+  citationCode?: string;
   imageFile?: File | null;
   imageViewOnce?: boolean;
 };
@@ -346,7 +347,7 @@ function App() {
   const [activeNav, setActiveNav] = useState<NavKey>("hoje");
   const [currentMemberId, setCurrentMemberId] = useState("m_di");
   const [activeGroupId, setActiveGroupId] = useState("g_geral");
-  const [selectedCitation, setSelectedCitation] = useState("DOC-001");
+  const [selectedCitation, setSelectedCitation] = useState("");
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -725,9 +726,10 @@ function App() {
 
   async function sendMessage(input: MessageInput) {
     const trimmed = input.body.trim();
+    const citationCode = input.citationCode?.trim() || undefined;
     const imageFile = input.imageFile ?? null;
     const hasImage = Boolean(imageFile);
-    if (!trimmed && !imageFile) return false;
+    if (!trimmed && !imageFile && !citationCode) return false;
 
     if (imageFile && !imageFile.type.startsWith("image/")) {
       showNotice("Escolhe um ficheiro de imagem.");
@@ -770,9 +772,9 @@ function App() {
         id: messageId,
         room_id: activeGroup.id,
         author_id: profile.id,
-        body: trimmed || (hasImage ? "Imagem" : ""),
+        body: trimmed || (hasImage ? "Imagem" : "Referência"),
         recipients_at_send: recipientsAtSend,
-        citation_code: selectedCitation || null,
+        citation_code: citationCode ?? null,
         image_path: imagePath ?? null,
         image_name: imageFile?.name ?? null,
         image_mime_type: imageFile?.type ?? null,
@@ -798,10 +800,10 @@ function App() {
           id: crypto.randomUUID(),
           roomId: activeGroup.id,
           authorId: currentMember.id,
-          body: trimmed || (hasImage ? "Imagem" : ""),
+          body: trimmed || (hasImage ? "Imagem" : "Referência"),
           createdAt: new Date().toISOString(),
           recipientsAtSend,
-          citationCode: selectedCitation || undefined,
+          citationCode,
           imageUrl,
           imageName: imageFile?.name,
           imageMimeType: imageFile?.type,
@@ -1352,7 +1354,6 @@ function App() {
             currentMember={currentMember}
             memberById={memberById}
             docsByCode={docsByCode}
-            selectedCitation={selectedCitation}
             setActiveGroupId={setActiveGroupId}
             setSelectedCitation={setSelectedCitation}
             sendMessage={sendMessage}
@@ -1708,7 +1709,6 @@ function ChatView({
   currentMember,
   memberById,
   docsByCode,
-  selectedCitation,
   setActiveGroupId,
   setSelectedCitation,
   sendMessage,
@@ -1726,7 +1726,6 @@ function ChatView({
   currentMember: Member;
   memberById: Map<string, Member>;
   docsByCode: Map<string, CommunityDoc>;
-  selectedCitation: string;
   setActiveGroupId: (id: string) => void;
   setSelectedCitation: (code: string) => void;
   sendMessage: (input: MessageInput) => Promise<boolean>;
@@ -1737,6 +1736,7 @@ function ChatView({
   showNotice: (message: string) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [draftCitationCode, setDraftCitationCode] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [imageViewOnce, setImageViewOnce] = useState(false);
@@ -1751,6 +1751,17 @@ function ChatView({
   });
   const groupMembers = members.filter((member) => member.groupIds.includes(activeGroup.id));
   const onlineCount = groupMembers.filter((member) => member.status === "online").length;
+  const activeMentionQuery = getActiveMentionQuery(draft);
+  const citationSuggestions =
+    activeMentionQuery === null
+      ? []
+      : docs
+          .filter((doc) => {
+            const query = activeMentionQuery.toLowerCase();
+            if (!query) return true;
+            return [doc.code, doc.title, ...doc.tags].some((value) => value.toLowerCase().includes(query));
+          })
+          .slice(0, 5);
 
   useEffect(() => {
     if (!imageFile) {
@@ -1784,6 +1795,15 @@ function ChatView({
   function clearImage() {
     setImageFile(null);
     setImageViewOnce(false);
+  }
+
+  function insertCitationMention(doc: CommunityDoc) {
+    const mention = `@${getDocMentionLabel(doc)}`;
+    const nextDraft = draft.match(/(^|\s)@[^@]*$/)
+      ? draft.replace(/(^|\s)@[^@]*$/, `$1${mention} `)
+      : `${draft.trimEnd()} ${mention} `;
+    setDraftCitationCode(doc.code);
+    setDraft(nextDraft);
   }
 
   async function revealImage(message: ChatMessage) {
@@ -1849,10 +1869,18 @@ function ChatView({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const selectedCitation = docs.find((doc) => doc.code === draftCitationCode);
+    const citationCode =
+      selectedCitation && hasDocMention(draft, selectedCitation)
+        ? selectedCitation.code
+        : findReferencedDocCode(draft, docs);
+    const citedDoc = citationCode ? docs.find((doc) => doc.code === citationCode) : undefined;
+    const body = citedDoc ? stripCitationMention(draft, citedDoc) : draft;
     setSending(true);
-    const sent = await sendMessage({ body: draft, imageFile, imageViewOnce }).finally(() => setSending(false));
+    const sent = await sendMessage({ body, citationCode, imageFile, imageViewOnce }).finally(() => setSending(false));
     if (sent) {
       setDraft("");
+      setDraftCitationCode("");
       clearImage();
     }
   }
@@ -1932,7 +1960,7 @@ function ChatView({
                   <div className="message-actions">
                     <button className="citation-chip" type="button" onClick={() => setSelectedCitation(citedDoc.code)}>
                       <Link2 size={14} aria-hidden />
-                      {citedDoc.code} · {citedDoc.title}
+                      {citedDoc.title}
                     </button>
                     <button
                       className="icon-only compact"
@@ -1954,6 +1982,23 @@ function ChatView({
         </div>
 
         <form className="composer" onSubmit={handleSubmit}>
+          {citationSuggestions.length > 0 && (
+            <div className="mention-menu" role="listbox" aria-label="Documentos disponíveis">
+              {citationSuggestions.map((doc) => (
+                <button
+                  key={doc.id}
+                  type="button"
+                  role="option"
+                  aria-label={`Citar ${doc.title}`}
+                  onClick={() => insertCitationMention(doc)}
+                >
+                  <span>{doc.title}</span>
+                  <small>{doc.tags.slice(0, 2).join(" · ") || "Documento"}</small>
+                </button>
+              ))}
+            </div>
+          )}
+
           {imageFile && (
             <div className="attachment-preview">
               {imagePreview && <img src={imagePreview} alt="" />}
@@ -1968,23 +2013,13 @@ function ChatView({
           )}
 
           <div className="composer-row">
-            <select
-              className="citation-select"
-              aria-label="Documento para citar"
-              value={selectedCitation}
-              onChange={(event) => setSelectedCitation(event.target.value)}
-            >
-              <option value="">sem citação</option>
-              {docs.map((doc) => (
-                <option key={doc.id} value={doc.code}>
-                  {doc.code}
-                </option>
-              ))}
-            </select>
             <input
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={`Mensagem como ${currentMember.name}`}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                if (!event.target.value.trim()) setDraftCitationCode("");
+              }}
+              placeholder={`Mensagem como ${currentMember.name}; usa @ para citar`}
             />
             <label className="secondary-button attachment-picker" title="Adicionar imagem">
               <ImageIcon size={18} aria-hidden />
@@ -2795,6 +2830,40 @@ function formatFileSize(bytes: number) {
   }
 
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function getActiveMentionQuery(value: string) {
+  const match = value.match(/(^|\s)@([^\s@]*)$/);
+  return match ? match[2].trimStart() : null;
+}
+
+function findReferencedDocCode(value: string, docs: CommunityDoc[]) {
+  return docs.find((doc) => hasDocMention(value, doc))?.code;
+}
+
+function hasDocMention(value: string, doc: CommunityDoc) {
+  return docMentionPatterns(doc).some((pattern) => pattern.test(value));
+}
+
+function stripCitationMention(value: string, doc: CommunityDoc) {
+  return docMentionPatterns(doc)
+    .reduce((nextValue, pattern) => nextValue.replace(pattern, " "), value)
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function docMentionPatterns(doc: CommunityDoc) {
+  return [doc.code, getDocMentionLabel(doc)].map(
+    (label) => new RegExp(`(^|\\s)@${escapeRegExp(label)}(?=\\s|$)`, "gi"),
+  );
+}
+
+function getDocMentionLabel(doc: CommunityDoc) {
+  return doc.title;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function safeFileName(name: string) {
