@@ -4095,8 +4095,8 @@ function App() {
             <Sparkles size={22} aria-hidden />
           </div>
           <div>
-            <h1>Porto NM</h1>
-            <p>Comunidade privada</p>
+            <h1>entra.</h1>
+            <p>Porto NM</p>
           </div>
         </div>
 
@@ -4423,8 +4423,8 @@ function AuthView() {
             <Sparkles size={22} aria-hidden />
           </div>
           <div>
-            <h1>Porto NM</h1>
-            <p>Entrada privada</p>
+            <h1>entra.</h1>
+            <p>Porto NM privado</p>
           </div>
         </div>
 

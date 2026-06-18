@@ -16,6 +16,8 @@
     "supabase:push": "npx supabase db push --linked"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource/fraunces": "^5.2.9",
     "@supabase/supabase-js": "^2.108.2",
     "@vitejs/plugin-react": "^5.0.0",
     "lucide-react": "^0.468.0",
