@@ -19,8 +19,8 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createClient, Session } from "@supabase/supabase-js";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "guardia";
@@ -62,7 +62,7 @@ type CommunityDoc = {
   code: string;
   title: string;
   summary: string;
-  ownerId: string;
+  ownerId: string | null;
   updatedAt: string;
   tags: string[];
 };
@@ -85,14 +85,92 @@ type CommunityState = {
   messages: ChatMessage[];
 };
 
+type InviteCode = {
+  code: string;
+  sponsorId: string | null;
+  role: MemberRole;
+  maxUses: number;
+  uses: number;
+  expiresAt: string | null;
+  createdAt: string;
+};
+
+type ProfileRow = {
+  id: string;
+  name: string;
+  pronouns: string | null;
+  joined_at: string;
+  sponsor_id: string | null;
+  role: MemberRole;
+  status: MemberStatus;
+};
+
+type GroupRow = {
+  id: string;
+  name: string;
+  focus: string;
+  privacy: GroupPrivacy;
+  steward_id: string | null;
+  color: string;
+};
+
+type GroupMemberRow = {
+  group_id: string;
+  member_id: string;
+};
+
+type EventRow = {
+  id: string;
+  title: string;
+  starts_at: string;
+  place: string;
+  group_id: string;
+  capacity: number;
+  created_by: string | null;
+};
+
+type EventAttendeeRow = {
+  event_id: string;
+  member_id: string;
+};
+
+type DocRow = {
+  id: string;
+  code: string;
+  title: string;
+  summary: string;
+  owner_id: string | null;
+  updated_at: string;
+  tags: string[] | null;
+};
+
+type MessageRow = {
+  id: string;
+  room_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  recipients_at_send: string[] | null;
+  citation_code: string | null;
+};
+
+type InviteRow = {
+  code: string;
+  sponsor_id: string | null;
+  role: MemberRole;
+  max_uses: number;
+  uses: number;
+  expires_at: string | null;
+  created_at: string;
+};
+
 const storeKey = "porto-nm-community-v1";
-const communityStateId = "porto_nm";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const supabase =
   supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
-type SyncStatus = "local" | "loading" | "connected" | "saving" | "error";
+type SyncStatus = "local" | "auth" | "loading" | "connected" | "saving" | "error";
 
 const seedState: CommunityState = {
   members: [
@@ -229,137 +307,256 @@ const seedState: CommunityState = {
 };
 
 function App() {
+  const usingBackend = Boolean(supabase);
   const [state, setState] = useState<CommunityState>(() => loadState());
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(supabase ? "loading" : "local");
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(usingBackend);
+  const [profile, setProfile] = useState<Member | null>(null);
+  const [communityHasFounder, setCommunityHasFounder] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(usingBackend ? "auth" : "local");
   const [syncMessage, setSyncMessage] = useState("");
-  const [remoteReady, setRemoteReady] = useState(!supabase);
   const [activeNav, setActiveNav] = useState<NavKey>("hoje");
   const [currentMemberId, setCurrentMemberId] = useState("m_di");
   const [activeGroupId, setActiveGroupId] = useState("g_geral");
   const [selectedCitation, setSelectedCitation] = useState("DOC-001");
   const [search, setSearch] = useState("");
-  const lastSavedState = useRef(JSON.stringify(loadState()));
+
+  const fetchBackendData = useCallback(async () => {
+    if (!supabase || !session) return;
+    setSyncStatus("loading");
+
+    const [
+      profilesResult,
+      groupsResult,
+      groupMembersResult,
+      eventsResult,
+      attendeesResult,
+      docsResult,
+      messagesResult,
+      invitesResult,
+    ] = await Promise.all([
+      supabase.from("profiles").select("*").order("joined_at", { ascending: true }),
+      supabase.from("groups").select("*").order("name", { ascending: true }),
+      supabase.from("group_members").select("*"),
+      supabase.from("events").select("*").order("starts_at", { ascending: true }),
+      supabase.from("event_attendees").select("*"),
+      supabase.from("docs").select("*").order("updated_at", { ascending: false }),
+      supabase.from("messages").select("*").order("created_at", { ascending: true }).limit(200),
+      supabase.from("invite_codes").select("*").order("created_at", { ascending: false }),
+    ]);
+
+    const firstError = [
+      profilesResult.error,
+      groupsResult.error,
+      groupMembersResult.error,
+      eventsResult.error,
+      attendeesResult.error,
+      docsResult.error,
+      messagesResult.error,
+      invitesResult.error,
+    ].find(Boolean);
+
+    if (firstError) {
+      setSyncStatus("error");
+      setSyncMessage(firstError.message);
+      return;
+    }
+
+    const groupIdsByMember = new Map<string, string[]>();
+    (groupMembersResult.data as GroupMemberRow[] | null)?.forEach((row) => {
+      const groupIds = groupIdsByMember.get(row.member_id) ?? [];
+      groupIds.push(row.group_id);
+      groupIdsByMember.set(row.member_id, groupIds);
+    });
+
+    const attendeeIdsByEvent = new Map<string, string[]>();
+    (attendeesResult.data as EventAttendeeRow[] | null)?.forEach((row) => {
+      const attendeeIds = attendeeIdsByEvent.get(row.event_id) ?? [];
+      attendeeIds.push(row.member_id);
+      attendeeIdsByEvent.set(row.event_id, attendeeIds);
+    });
+
+    const members = ((profilesResult.data ?? []) as ProfileRow[]).map((row) => ({
+      id: row.id,
+      name: row.name,
+      pronouns: row.pronouns ?? "por definir",
+      joinedAt: row.joined_at,
+      sponsorId: row.sponsor_id,
+      role: row.role,
+      groupIds: groupIdsByMember.get(row.id) ?? [],
+      status: row.status,
+    }));
+
+    const groups = ((groupsResult.data ?? []) as GroupRow[]).map((row) => ({
+      id: row.id,
+      name: row.name,
+      focus: row.focus,
+      privacy: row.privacy,
+      stewardId: row.steward_id ?? "",
+      color: row.color,
+    }));
+
+    const events = ((eventsResult.data ?? []) as EventRow[]).map((row) => ({
+      id: row.id,
+      title: row.title,
+      startsAt: row.starts_at,
+      place: row.place,
+      groupId: row.group_id,
+      capacity: row.capacity,
+      attendeeIds: attendeeIdsByEvent.get(row.id) ?? [],
+    }));
+
+    const docs = ((docsResult.data ?? []) as DocRow[]).map((row) => ({
+      id: row.id,
+      code: row.code,
+      title: row.title,
+      summary: row.summary,
+      ownerId: row.owner_id,
+      updatedAt: row.updated_at,
+      tags: row.tags ?? [],
+    }));
+
+    const messages = ((messagesResult.data ?? []) as MessageRow[]).map((row) => ({
+      id: row.id,
+      roomId: row.room_id,
+      authorId: row.author_id,
+      body: row.body,
+      createdAt: row.created_at,
+      recipientsAtSend: row.recipients_at_send ?? [],
+      citationCode: row.citation_code ?? undefined,
+    }));
+
+    const invites = ((invitesResult.data ?? []) as InviteRow[]).map((row) => ({
+      code: row.code,
+      sponsorId: row.sponsor_id,
+      role: row.role,
+      maxUses: row.max_uses,
+      uses: row.uses,
+      expiresAt: row.expires_at,
+      createdAt: row.created_at,
+    }));
+
+    setState({ members, groups, events, docs, messages });
+    setInviteCodes(invites);
+    setSyncStatus("connected");
+    setSyncMessage("");
+  }, [session]);
+
+  const loadProfile = useCallback(async (currentSession: Session | null) => {
+    if (!supabase || !currentSession) return null;
+
+    const { data: hasFounder, error: founderError } = await supabase.rpc("community_has_founder");
+    if (!founderError) {
+      setCommunityHasFounder(Boolean(hasFounder));
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", currentSession.user.id)
+      .maybeSingle();
+
+    if (error) {
+      setSyncStatus("error");
+      setSyncMessage(error.message);
+      return null;
+    }
+
+    if (!data) {
+      setProfile(null);
+      setSyncStatus("auth");
+      return null;
+    }
+
+    const row = data as ProfileRow;
+    const member: Member = {
+      id: row.id,
+      name: row.name,
+      pronouns: row.pronouns ?? "por definir",
+      joinedAt: row.joined_at,
+      sponsorId: row.sponsor_id,
+      role: row.role,
+      groupIds: [],
+      status: row.status,
+    };
+    setProfile(member);
+    setCurrentMemberId(member.id);
+    return member;
+  }, []);
+
+  const refreshSignedInData = useCallback(async () => {
+    if (!session) return;
+    const member = await loadProfile(session);
+    if (member) {
+      await fetchBackendData();
+    }
+  }, [fetchBackendData, loadProfile, session]);
 
   useEffect(() => {
     if (!supabase) return;
-    const client = supabase;
     let mounted = true;
 
-    async function loadSharedState() {
-      setSyncStatus("loading");
-      const { data, error } = await client
-        .from("community_state")
-        .select("state")
-        .eq("id", communityStateId)
-        .maybeSingle();
-
+    supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
+      setSession(data.session);
+      setAuthLoading(false);
+    });
 
-      if (error) {
-        setSyncStatus("error");
-        setSyncMessage(error.message);
-        setRemoteReady(true);
-        return;
-      }
-
-      if (data?.state && isCommunityState(data.state)) {
-        const sharedState = data.state;
-        lastSavedState.current = JSON.stringify(sharedState);
-        setState(sharedState);
-      } else {
-        const { error: seedError } = await client.from("community_state").upsert({
-          id: communityStateId,
-          state: seedState,
-          updated_at: new Date().toISOString(),
-        });
-
-        if (!mounted) return;
-
-        if (seedError) {
-          setSyncStatus("error");
-          setSyncMessage(seedError.message);
-          setRemoteReady(true);
-          return;
-        }
-
-        lastSavedState.current = JSON.stringify(seedState);
-        setState(seedState);
-      }
-
-      setSyncStatus("connected");
-      setSyncMessage("");
-      setRemoteReady(true);
-    }
-
-    loadSharedState();
-
-    const channel = client
-      .channel("community-state-sync")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "community_state",
-          filter: `id=eq.${communityStateId}`,
-        },
-        (payload) => {
-          const incoming = payload.new && "state" in payload.new ? payload.new.state : null;
-          if (!isCommunityState(incoming)) return;
-          lastSavedState.current = JSON.stringify(incoming);
-          setState(incoming);
-          setSyncStatus("connected");
-          setSyncMessage("");
-        },
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setSyncStatus("connected");
-          setSyncMessage("");
-        }
-      });
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setProfile(null);
+      setAuthLoading(false);
+      setSyncStatus(nextSession ? "loading" : "auth");
+    });
 
     return () => {
       mounted = false;
-      client.removeChannel(channel);
+      data.subscription.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(storeKey, JSON.stringify(state));
-  }, [state]);
+    if (!supabase) return;
+    if (!session) {
+      setProfile(null);
+      setSyncStatus("auth");
+      return;
+    }
+    refreshSignedInData();
+  }, [refreshSignedInData, session]);
 
   useEffect(() => {
-    if (!supabase || !remoteReady) return;
-    const client = supabase;
-    const serialized = JSON.stringify(state);
-    if (serialized === lastSavedState.current) return;
+    if (!supabase || !session || !profile) return;
+    let reloadHandle: number | undefined;
+    const channel = supabase
+      .channel("community-tables")
+      .on("postgres_changes", { event: "*", schema: "public" }, () => {
+        if (reloadHandle) window.clearTimeout(reloadHandle);
+        reloadHandle = window.setTimeout(() => {
+          fetchBackendData();
+        }, 200);
+      })
+      .subscribe();
 
-    const saveHandle = window.setTimeout(async () => {
-      setSyncStatus("saving");
-      const { error } = await client.from("community_state").upsert({
-        id: communityStateId,
-        state,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (error) {
-        setSyncStatus("error");
-        setSyncMessage(error.message);
-        return;
-      }
-
-      lastSavedState.current = serialized;
-      setSyncStatus("connected");
-      setSyncMessage("");
-    }, 250);
-
-    return () => window.clearTimeout(saveHandle);
-  }, [remoteReady, state]);
+    return () => {
+      if (reloadHandle) window.clearTimeout(reloadHandle);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchBackendData, profile, session]);
 
   useEffect(() => {
+    if (!usingBackend) {
+      localStorage.setItem(storeKey, JSON.stringify(state));
+    }
+  }, [state, usingBackend]);
+
+  useEffect(() => {
+    if (profile) {
+      setProfile((current) => state.members.find((member) => member.id === current?.id) ?? current);
+    }
     if (!state.members.some((member) => member.id === currentMemberId)) {
-      setCurrentMemberId(state.members[0]?.id ?? "");
+      setCurrentMemberId(usingBackend ? profile?.id ?? state.members[0]?.id ?? "" : state.members[0]?.id ?? "");
     }
     if (!state.groups.some((group) => group.id === activeGroupId)) {
       setActiveGroupId(state.groups[0]?.id ?? "");
@@ -367,7 +564,16 @@ function App() {
     if (selectedCitation && !state.docs.some((doc) => doc.code === selectedCitation)) {
       setSelectedCitation(state.docs[0]?.code ?? "");
     }
-  }, [activeGroupId, currentMemberId, selectedCitation, state.docs, state.groups, state.members]);
+  }, [
+    activeGroupId,
+    currentMemberId,
+    profile,
+    selectedCitation,
+    state.docs,
+    state.groups,
+    state.members,
+    usingBackend,
+  ]);
 
   const memberById = useMemo(
     () => new Map(state.members.map((member) => [member.id, member])),
@@ -399,17 +605,41 @@ function App() {
   });
 
   function updateState(updater: (draft: CommunityState) => CommunityState) {
+    if (usingBackend) return;
     setState((current) => updater(current));
   }
 
   function resetState() {
+    if (usingBackend) {
+      fetchBackendData();
+      return;
+    }
     setState(seedState);
     setCurrentMemberId("m_di");
     setActiveGroupId("g_geral");
     setSelectedCitation("DOC-001");
   }
 
-  function toggleMemberStatus(memberId: string) {
+  async function toggleMemberStatus(memberId: string) {
+    if (usingBackend && supabase && profile) {
+      if (memberId !== profile.id && profile.role !== "guardia") return;
+      const target = state.members.find((member) => member.id === memberId);
+      if (!target) return;
+      setSyncStatus("saving");
+      const nextStatus = target.status === "online" ? "offline" : "online";
+      const { error } =
+        memberId === profile.id
+          ? await supabase.rpc("set_my_status", { next_status: nextStatus })
+          : await supabase.from("profiles").update({ status: nextStatus }).eq("id", memberId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      return;
+    }
+
     updateState((current) => ({
       ...current,
       members: current.members.map((member) =>
@@ -420,13 +650,32 @@ function App() {
     }));
   }
 
-  function sendMessage(body: string) {
+  async function sendMessage(body: string) {
     const trimmed = body.trim();
     if (!trimmed) return;
     const groupMembers = state.members.filter((member) => member.groupIds.includes(activeGroup.id));
     const recipientsAtSend = groupMembers
       .filter((member) => member.status === "online" && member.id !== currentMember.id)
       .map((member) => member.id);
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("messages").insert({
+        id: crypto.randomUUID(),
+        room_id: activeGroup.id,
+        author_id: profile.id,
+        body: trimmed,
+        recipients_at_send: recipientsAtSend,
+        citation_code: selectedCitation || null,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      return;
+    }
 
     updateState((current) => ({
       ...current,
@@ -464,13 +713,35 @@ function App() {
     updateState((current) => ({ ...current, members: [...current.members, member] }));
   }
 
-  function addEvent(input: {
+  async function addEvent(input: {
     title: string;
     startsAt: string;
     place: string;
     groupId: string;
     capacity: number;
   }) {
+    if (usingBackend && supabase && profile) {
+      const eventId = crypto.randomUUID();
+      setSyncStatus("saving");
+      const { error } = await supabase.from("events").insert({
+        id: eventId,
+        title: input.title.trim(),
+        starts_at: new Date(input.startsAt).toISOString(),
+        place: input.place.trim(),
+        group_id: input.groupId,
+        capacity: input.capacity,
+        created_by: profile.id,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await supabase.from("event_attendees").insert({ event_id: eventId, member_id: profile.id });
+      await fetchBackendData();
+      return;
+    }
+
     const event: EventItem = {
       id: crypto.randomUUID(),
       title: input.title.trim(),
@@ -483,7 +754,29 @@ function App() {
     updateState((current) => ({ ...current, events: [...current.events, event] }));
   }
 
-  function toggleRsvp(eventId: string) {
+  async function toggleRsvp(eventId: string) {
+    if (usingBackend && supabase && profile) {
+      const event = state.events.find((candidate) => candidate.id === eventId);
+      if (!event) return;
+      const attending = event.attendeeIds.includes(profile.id);
+      setSyncStatus("saving");
+      const { error } = attending
+        ? await supabase
+            .from("event_attendees")
+            .delete()
+            .eq("event_id", eventId)
+            .eq("member_id", profile.id)
+        : await supabase.from("event_attendees").insert({ event_id: eventId, member_id: profile.id });
+
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      return;
+    }
+
     updateState((current) => ({
       ...current,
       events: current.events.map((event) => {
@@ -499,44 +792,112 @@ function App() {
     }));
   }
 
-  function addDoc(input: { title: string; summary: string; tags: string }) {
+  async function addDoc(input: { title: string; summary: string; tags: string }) {
     const nextNumber = state.docs.length + 1;
+    const code = `DOC-${String(nextNumber).padStart(3, "0")}`;
+    const tags = input.tags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("docs").insert({
+        id: crypto.randomUUID(),
+        code,
+        title: input.title.trim(),
+        summary: input.summary.trim(),
+        owner_id: profile.id,
+        tags,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      setSelectedCitation(code);
+      await fetchBackendData();
+      return;
+    }
+
     const doc: CommunityDoc = {
       id: crypto.randomUUID(),
-      code: `DOC-${String(nextNumber).padStart(3, "0")}`,
+      code,
       title: input.title.trim(),
       summary: input.summary.trim(),
       ownerId: currentMember.id,
       updatedAt: formatDateInput(new Date()),
-      tags: input.tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      tags,
     };
     updateState((current) => ({ ...current, docs: [...current.docs, doc] }));
     setSelectedCitation(doc.code);
   }
 
-  function addGroup(input: {
+  async function addGroup(input: {
     name: string;
     focus: string;
     privacy: GroupPrivacy;
     stewardId: string;
   }) {
     const palette = ["#176b63", "#c4493d", "#5457a6", "#9a5a20", "#2d6f9f"];
+    const groupId = `g_${crypto.randomUUID()}`;
+    const groupColor = palette[state.groups.length % palette.length];
+
+    if (usingBackend && supabase && profile?.role === "guardia") {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("groups").insert({
+        id: groupId,
+        name: input.name.trim(),
+        focus: input.focus.trim(),
+        privacy: input.privacy,
+        steward_id: input.stewardId,
+        color: groupColor,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await supabase.from("group_members").insert({ group_id: groupId, member_id: input.stewardId });
+      setActiveGroupId(groupId);
+      await fetchBackendData();
+      return;
+    }
+
     const group: Group = {
-      id: crypto.randomUUID(),
+      id: groupId,
       name: input.name.trim(),
       focus: input.focus.trim(),
       privacy: input.privacy,
       stewardId: input.stewardId,
-      color: palette[state.groups.length % palette.length],
+      color: groupColor,
     };
     updateState((current) => ({ ...current, groups: [...current.groups, group] }));
     setActiveGroupId(group.id);
   }
 
-  function toggleGroupMember(groupId: string, memberId: string) {
+  async function toggleGroupMember(groupId: string, memberId: string) {
+    if (usingBackend && supabase && profile?.role === "guardia") {
+      const member = state.members.find((candidate) => candidate.id === memberId);
+      if (!member) return;
+      const hasGroup = member.groupIds.includes(groupId);
+      setSyncStatus("saving");
+      const { error } = hasGroup
+        ? await supabase
+            .from("group_members")
+            .delete()
+            .eq("group_id", groupId)
+            .eq("member_id", memberId)
+        : await supabase.from("group_members").insert({ group_id: groupId, member_id: memberId });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      return;
+    }
+
     updateState((current) => ({
       ...current,
       members: current.members.map((member) => {
@@ -550,6 +911,78 @@ function App() {
         };
       }),
     }));
+  }
+
+  async function createInvite(input: { code: string; role: MemberRole; maxUses: number }) {
+    if (!supabase || !profile) return;
+    const code = (input.code.trim() || makeInviteCode()).toUpperCase();
+    setSyncStatus("saving");
+    const { error } = await supabase.from("invite_codes").insert({
+      code,
+      sponsor_id: profile.id,
+      role: input.role,
+      max_uses: input.maxUses,
+    });
+    if (error) {
+      setSyncStatus("error");
+      setSyncMessage(error.message);
+      return;
+    }
+    await fetchBackendData();
+  }
+
+  async function handleSignOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setSession(null);
+    setProfile(null);
+    setState(seedState);
+    setInviteCodes([]);
+  }
+
+  async function handleOnboarding(input: {
+    mode: "founder" | "invite";
+    name: string;
+    pronouns: string;
+    inviteCode: string;
+  }) {
+    if (!supabase) return;
+    setSyncStatus("saving");
+    const rpcName = input.mode === "founder" ? "claim_founder" : "accept_invite";
+    const payload =
+      input.mode === "founder"
+        ? { display_name: input.name.trim(), display_pronouns: input.pronouns.trim() }
+        : {
+            _invite_code: input.inviteCode.trim().toUpperCase(),
+            display_name: input.name.trim(),
+            display_pronouns: input.pronouns.trim(),
+          };
+    const { error } = await supabase.rpc(rpcName, payload);
+    if (error) {
+      setSyncStatus("error");
+      setSyncMessage(error.message);
+      return;
+    }
+    await refreshSignedInData();
+  }
+
+  if (usingBackend && authLoading) {
+    return <LoadingScreen label="A abrir comunidade" />;
+  }
+
+  if (usingBackend && !session) {
+    return <AuthView />;
+  }
+
+  if (usingBackend && session && !profile) {
+    return (
+      <OnboardingView
+        hasFounder={communityHasFounder}
+        syncMessage={syncStatus === "error" ? syncMessage : ""}
+        onSubmit={handleOnboarding}
+        onSignOut={handleSignOut}
+      />
+    );
   }
 
   return (
@@ -574,24 +1007,32 @@ function App() {
           <NavButton id="entradas" active={activeNav} setActive={setActiveNav} icon={<HandHeart />} label="Entradas" />
         </nav>
 
-        <div className="actor-box">
-          <label htmlFor="current-member">Ver como</label>
-          <select
-            id="current-member"
-            value={currentMemberId}
-            onChange={(event) => setCurrentMemberId(event.target.value)}
-          >
-            {state.members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {usingBackend && profile ? (
+          <div className="actor-box account-box">
+            <label>Conta</label>
+            <strong>{profile.name}</strong>
+            <span>{profile.role}</span>
+          </div>
+        ) : (
+          <div className="actor-box">
+            <label htmlFor="current-member">Ver como</label>
+            <select
+              id="current-member"
+              value={currentMemberId}
+              onChange={(event) => setCurrentMemberId(event.target.value)}
+            >
+              {state.members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        <button className="ghost-button" type="button" onClick={resetState}>
+        <button className="ghost-button" type="button" onClick={usingBackend ? handleSignOut : resetState}>
           <RefreshCw size={16} aria-hidden />
-          Repor exemplo
+          {usingBackend ? "Sair" : "Repor exemplo"}
         </button>
       </aside>
 
@@ -689,10 +1130,190 @@ function App() {
             groups={state.groups}
             memberById={memberById}
             addMember={addMember}
+            backendMode={usingBackend}
+            currentMember={currentMember}
+            inviteCodes={inviteCodes}
+            createInvite={createInvite}
           />
         )}
       </main>
     </div>
+  );
+}
+
+function LoadingScreen({ label }: { label: string }) {
+  return (
+    <main className="auth-screen">
+      <section className="auth-panel surface">
+        <div className="brand-mark">
+          <Sparkles size={22} aria-hidden />
+        </div>
+        <h1>{label}</h1>
+        <p>A preparar a ligação segura à comunidade.</p>
+      </section>
+    </main>
+  );
+}
+
+function AuthView() {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase || !email.trim() || !password.trim()) return;
+    setSubmitting(true);
+    setMessage("");
+
+    const result =
+      mode === "login"
+        ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
+        : await supabase.auth.signUp({ email: email.trim(), password });
+
+    setSubmitting(false);
+
+    if (result.error) {
+      setMessage(result.error.message);
+      return;
+    }
+
+    if (mode === "signup" && !result.data.session) {
+      setMessage("Conta criada. Confirma o email antes de entrar.");
+    }
+  }
+
+  return (
+    <main className="auth-screen">
+      <section className="auth-panel surface">
+        <div className="brand-block compact">
+          <div className="brand-mark">
+            <Sparkles size={22} aria-hidden />
+          </div>
+          <div>
+            <h1>Porto NM</h1>
+            <p>Entrada privada</p>
+          </div>
+        </div>
+
+        <div className="segmented-control" role="tablist" aria-label="Modo de acesso">
+          <button className={mode === "login" ? "active" : ""} type="button" onClick={() => setMode("login")}>
+            Entrar
+          </button>
+          <button className={mode === "signup" ? "active" : ""} type="button" onClick={() => setMode("signup")}>
+            Criar conta
+          </button>
+        </div>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="field-group">
+            <label htmlFor="auth-email">Email</label>
+            <input
+              id="auth-email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="auth-password">Palavra-passe</label>
+            <input
+              id="auth-password"
+              type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              minLength={6}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </div>
+          {message && <p className="form-alert">{message}</p>}
+          <button className="primary-button" type="submit" disabled={submitting}>
+            <ShieldCheck size={17} aria-hidden />
+            {submitting ? "Aguarda" : mode === "login" ? "Entrar" : "Criar conta"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function OnboardingView({
+  hasFounder,
+  syncMessage,
+  onSubmit,
+  onSignOut,
+}: {
+  hasFounder: boolean;
+  syncMessage: string;
+  onSubmit: (input: {
+    mode: "founder" | "invite";
+    name: string;
+    pronouns: string;
+    inviteCode: string;
+  }) => Promise<void>;
+  onSignOut: () => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [pronouns, setPronouns] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const mode = hasFounder ? "invite" : "founder";
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    if (mode === "invite" && !inviteCode.trim()) return;
+    setSubmitting(true);
+    await onSubmit({ mode, name, pronouns, inviteCode });
+    setSubmitting(false);
+  }
+
+  return (
+    <main className="auth-screen">
+      <section className="auth-panel surface">
+        <div className="brand-block compact">
+          <div className="brand-mark">
+            <HandHeart size={22} aria-hidden />
+          </div>
+          <div>
+            <h1>{mode === "founder" ? "Primeira guardiã" : "Convite"}</h1>
+            <p>{mode === "founder" ? "Criar a raiz da comunidade" : "Vincular entrada a quem convidou"}</p>
+          </div>
+        </div>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="field-group">
+            <label htmlFor="onboard-name">Nome</label>
+            <input id="onboard-name" value={name} onChange={(event) => setName(event.target.value)} />
+          </div>
+          <div className="field-group">
+            <label htmlFor="onboard-pronouns">Pronomes</label>
+            <input id="onboard-pronouns" value={pronouns} onChange={(event) => setPronouns(event.target.value)} />
+          </div>
+          {mode === "invite" && (
+            <div className="field-group">
+              <label htmlFor="invite-code">Código de convite</label>
+              <input
+                id="invite-code"
+                value={inviteCode}
+                onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+              />
+            </div>
+          )}
+          {syncMessage && <p className="form-alert">{syncMessage}</p>}
+          <button className="primary-button" type="submit" disabled={submitting}>
+            <HandHeart size={17} aria-hidden />
+            {submitting ? "A guardar" : mode === "founder" ? "Criar guardiã" : "Entrar com convite"}
+          </button>
+          <button className="secondary-button full-width" type="button" onClick={onSignOut}>
+            Sair
+          </button>
+        </form>
+      </section>
+    </main>
   );
 }
 
@@ -1261,17 +1882,30 @@ function EntrancesView({
   groups,
   memberById,
   addMember,
+  backendMode,
+  currentMember,
+  inviteCodes,
+  createInvite,
 }: {
   members: Member[];
   groups: Group[];
   memberById: Map<string, Member>;
   addMember: (input: { name: string; pronouns: string; sponsorId: string; groupIds: string[] }) => void;
+  backendMode?: boolean;
+  currentMember: Member;
+  inviteCodes: InviteCode[];
+  createInvite?: (input: { code: string; role: MemberRole; maxUses: number }) => Promise<void>;
 }) {
   const [form, setForm] = useState({
     name: "",
     pronouns: "",
     sponsorId: members[0]?.id ?? "",
     groupIds: ["g_geral"],
+  });
+  const [inviteForm, setInviteForm] = useState({
+    code: makeInviteCode(),
+    role: "nova pessoa" as MemberRole,
+    maxUses: 1,
   });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1281,63 +1915,124 @@ function EntrancesView({
     setForm((current) => ({ ...current, name: "", pronouns: "" }));
   }
 
+  async function handleInviteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!createInvite) return;
+    await createInvite(inviteForm);
+    setInviteForm({ code: makeInviteCode(), role: "nova pessoa", maxUses: 1 });
+  }
+
   return (
     <section className="entrances-layout">
-      <form className="surface form-panel" onSubmit={handleSubmit}>
-        <h3>Entrada por convite</h3>
-        <div className="field-group">
-          <label htmlFor="new-member-name">Nome</label>
-          <input
-            id="new-member-name"
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
-          />
-        </div>
-        <div className="field-group">
-          <label htmlFor="new-member-pronouns">Pronomes</label>
-          <input
-            id="new-member-pronouns"
-            value={form.pronouns}
-            onChange={(event) => setForm({ ...form, pronouns: event.target.value })}
-          />
-        </div>
-        <div className="field-group">
-          <label htmlFor="sponsor">Apadrinhade por</label>
-          <select
-            id="sponsor"
-            value={form.sponsorId}
-            onChange={(event) => setForm({ ...form, sponsorId: event.target.value })}
-          >
-            {members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <fieldset className="check-fieldset">
-          <legend>Grupos iniciais</legend>
-          {groups.map((group) => (
-            <label key={group.id}>
+      {backendMode ? (
+        <form className="surface form-panel" onSubmit={handleInviteSubmit}>
+          <h3>Novo convite</h3>
+          <div className="field-group">
+            <label htmlFor="invite-new-code">Código</label>
+            <input
+              id="invite-new-code"
+              value={inviteForm.code}
+              onChange={(event) => setInviteForm({ ...inviteForm, code: event.target.value.toUpperCase() })}
+            />
+          </div>
+          <div className="field-pair">
+            <div className="field-group">
+              <label htmlFor="invite-role">Entrada como</label>
+              <select
+                id="invite-role"
+                value={inviteForm.role}
+                onChange={(event) => setInviteForm({ ...inviteForm, role: event.target.value as MemberRole })}
+              >
+                <option value="nova pessoa">nova pessoa</option>
+                <option value="membro">membro</option>
+                {currentMember.role === "guardia" && <option value="guardia">guardia</option>}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="invite-uses">Usos</label>
               <input
-                type="checkbox"
-                checked={form.groupIds.includes(group.id)}
-                onChange={() => {
-                  const nextGroupIds = form.groupIds.includes(group.id)
-                    ? form.groupIds.filter((id) => id !== group.id)
-                    : [...form.groupIds, group.id];
-                  setForm({ ...form, groupIds: nextGroupIds });
-                }}
+                id="invite-uses"
+                type="number"
+                min={1}
+                max={20}
+                value={inviteForm.maxUses}
+                onChange={(event) => setInviteForm({ ...inviteForm, maxUses: Number(event.target.value) })}
               />
-              {group.name}
-            </label>
-          ))}
-        </fieldset>
-        <button className="primary-button" type="submit">
-          <HandHeart size={17} aria-hidden />
-          Vincular entrada
-        </button>
-      </form>
+            </div>
+          </div>
+          <p className="form-note">Apadrinhade por: {currentMember.name}</p>
+          <button className="primary-button" type="submit">
+            <HandHeart size={17} aria-hidden />
+            Criar convite
+          </button>
+
+          <div className="invite-code-list">
+            {inviteCodes.map((invite) => (
+              <article className="invite-code-row" key={invite.code}>
+                <strong>{invite.code}</strong>
+                <span>{invite.uses}/{invite.maxUses}</span>
+                <small>{memberById.get(invite.sponsorId ?? "")?.name ?? "sem padrinho"}</small>
+              </article>
+            ))}
+          </div>
+        </form>
+      ) : (
+        <form className="surface form-panel" onSubmit={handleSubmit}>
+          <h3>Entrada por convite</h3>
+          <div className="field-group">
+            <label htmlFor="new-member-name">Nome</label>
+            <input
+              id="new-member-name"
+              value={form.name}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="new-member-pronouns">Pronomes</label>
+            <input
+              id="new-member-pronouns"
+              value={form.pronouns}
+              onChange={(event) => setForm({ ...form, pronouns: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="sponsor">Apadrinhade por</label>
+            <select
+              id="sponsor"
+              value={form.sponsorId}
+              onChange={(event) => setForm({ ...form, sponsorId: event.target.value })}
+            >
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <fieldset className="check-fieldset">
+            <legend>Grupos iniciais</legend>
+            {groups.map((group) => (
+              <label key={group.id}>
+                <input
+                  type="checkbox"
+                  checked={form.groupIds.includes(group.id)}
+                  onChange={() => {
+                    const nextGroupIds = form.groupIds.includes(group.id)
+                      ? form.groupIds.filter((id) => id !== group.id)
+                      : [...form.groupIds, group.id];
+                    setForm({ ...form, groupIds: nextGroupIds });
+                  }}
+                />
+                {group.name}
+              </label>
+            ))}
+          </fieldset>
+          <button className="primary-button" type="submit">
+            <HandHeart size={17} aria-hidden />
+            Vincular entrada
+          </button>
+        </form>
+      )}
 
       <section className="surface sponsor-map">
         <SurfaceHeader icon={<Network />} title="Nomes vinculados" />
@@ -1469,6 +2164,10 @@ function getSyncCopy(status: SyncStatus) {
       label: "local",
       description: "Sem Supabase configurado; os dados ficam neste browser.",
     },
+    auth: {
+      label: "privado",
+      description: "Acesso protegido por conta e convite.",
+    },
     loading: {
       label: "a ligar",
       description: "A carregar estado partilhado.",
@@ -1487,6 +2186,13 @@ function getSyncCopy(status: SyncStatus) {
     },
   };
   return labels[status];
+}
+
+function makeInviteCode() {
+  return `PNM-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random()
+    .toString(36)
+    .slice(2, 6)
+    .toUpperCase()}`;
 }
 
 function navTitle(nav: NavKey) {

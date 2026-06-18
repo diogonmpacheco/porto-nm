@@ -11,7 +11,7 @@ npm run dev
 
 ## Shared collaboration mode
 
-The app works without a backend by using browser storage. To make it collaborative across devices, create a Supabase project and run `supabase/schema.sql` in the Supabase SQL editor.
+The app works without a backend by using browser storage. The deployed version uses Supabase Auth, invite-only onboarding, row-level security, and normalized community tables.
 
 Then set these variables locally in `.env.local` and in Vercel:
 
@@ -20,7 +20,18 @@ VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-public-anon-key
 ```
 
-This first collaboration layer stores the prototype state in one shared row and syncs changes in realtime. It is intentionally simple for validation. Before using it with a real sensitive community, replace the open prototype policies with authenticated access rules and split the data into dedicated tables.
+The current hosted backend uses these main tables:
+
+- `profiles`
+- `invite_codes`
+- `groups`
+- `group_members`
+- `events`
+- `event_attendees`
+- `docs`
+- `messages`
+
+First use: create an account in the live app. If there are no profiles yet, the app shows the founder setup screen and creates the first `guardia`. After that, entries happen through invite codes, and each accepted invite links the new profile to its sponsor.
 
 ### Supabase CLI path
 
@@ -39,7 +50,7 @@ npx supabase login --token YOUR_SUPABASE_ACCESS_TOKEN
 npm run supabase:link -- --project-ref YOUR_PROJECT_REF
 ```
 
-4. Push the migration:
+4. Push the migrations:
 
 ```bash
 npm run supabase:push
@@ -53,4 +64,4 @@ printf "YOUR_SUPABASE_ANON_KEY" | npx vercel env add VITE_SUPABASE_ANON_KEY prod
 npx vercel --prod --yes
 ```
 
-The SQL source lives in `supabase/migrations/20260618103500_create_community_state.sql`. `supabase/schema.sql` is kept as a copy that is easy to paste into the Supabase SQL editor if you prefer doing it manually.
+The current schema lives in `supabase/migrations/`.
