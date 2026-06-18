@@ -4349,8 +4349,9 @@ function App() {
 function LoadingScreen({ label }: { label: string }) {
   return (
     <main className="auth-screen">
-      <section className="auth-panel surface">
-        <div className="brand-block compact text-lockup">
+      <section className="auth-panel surface entry-auth-panel">
+        <div className="entry-orb" aria-hidden="true" />
+        <div className="brand-block compact entry-lockup">
           <div>
             <h1>entra.</h1>
             <p>{label}</p>
@@ -4416,11 +4417,12 @@ function AuthView() {
 
   return (
     <main className="auth-screen">
-      <section className="auth-panel surface">
-        <div className="brand-block compact">
+      <section className="auth-panel surface entry-auth-panel">
+        <div className="entry-orb" aria-hidden="true" />
+        <div className="brand-block compact entry-lockup">
           <div>
             <h1>entra.</h1>
-            <p>Porto NM privado</p>
+            <p>com sentimento</p>
           </div>
         </div>
 
