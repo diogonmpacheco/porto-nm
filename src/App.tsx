@@ -4096,7 +4096,7 @@ function App() {
           </div>
           <div>
             <h1>entra.</h1>
-            <p>Porto NM</p>
+            <p>com sentimento</p>
           </div>
         </div>
 
@@ -4729,6 +4729,23 @@ function ChatView({
       message.authorId === currentMember.id || message.recipientsAtSend.includes(currentMember.id)
     );
   });
+  const roomRows = groups.map((group) => {
+    const latestMessage = messages
+      .filter((message) => message.roomId === group.id)
+      .reduce<ChatMessage | undefined>(
+        (latest, message) => (!latest || message.createdAt > latest.createdAt ? message : latest),
+        undefined,
+      );
+    const latestAuthor = latestMessage ? memberById.get(latestMessage.authorId)?.name ?? "Pessoa" : "";
+    const latestBody = latestMessage
+      ? latestMessage.imagePath || latestMessage.imageUrl
+        ? "imagem privada · ver uma vez"
+        : latestMessage.body
+      : group.focus;
+    const preview = latestMessage ? `${latestAuthor}: ${latestBody}` : latestBody;
+    const memberCount = members.filter((member) => member.groupIds.includes(group.id)).length;
+    return { group, latestMessage, preview, memberCount };
+  });
   const groupMembers = members.filter((member) => member.groupIds.includes(activeGroup.id));
   const onlineCount = groupMembers.filter((member) => member.status === "online").length;
   const groupMemberIds = new Set(groupMembers.map((member) => member.id));
@@ -4952,22 +4969,42 @@ function ChatView({
     <section className="chat-layout">
       <aside className="surface live-sidebar">
         <div className="room-picker-block">
-          <div className="field-group">
-            <label htmlFor="room-select">Sala</label>
-            <select id="room-select" value={activeGroup.id} onChange={(event) => setActiveGroupId(event.target.value)}>
-              {groups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
+          <div className="room-list-header">
+            <h3>Salas</h3>
+            {currentMember.role === "admin" && (
+              <button
+                className="room-add-button"
+                type="button"
+                onClick={() => setShowRoomForm((current) => !current)}
+                title="Nova sala"
+              >
+                <Plus size={16} aria-hidden />
+              </button>
+            )}
+          </div>
+          <div className="room-list" role="listbox" aria-label="Salas">
+            {roomRows.map(({ group, latestMessage, preview, memberCount }) => (
+              <button
+                className={`room-row ${group.id === activeGroup.id ? "active" : ""}`}
+                key={group.id}
+                type="button"
+                role="option"
+                aria-selected={group.id === activeGroup.id}
+                onClick={() => setActiveGroupId(group.id)}
+              >
+                <span className="room-dot" style={{ background: group.color }} />
+                <span className="room-row-main">
+                  <strong>
+                    {group.name}
+                    <small>{latestMessage ? formatClock(latestMessage.createdAt) : `${memberCount} membros`}</small>
+                  </strong>
+                  <span>{preview}</span>
+                </span>
+              </button>
+            ))}
           </div>
           {currentMember.role === "admin" && (
             <>
-              <button className="secondary-button full-width" type="button" onClick={() => setShowRoomForm((current) => !current)}>
-                <Plus size={16} aria-hidden />
-                Nova sala
-              </button>
               {showRoomForm && (
                 <form className="room-create-form" onSubmit={handleRoomSubmit}>
                   <div className="field-group">
