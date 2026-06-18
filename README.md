@@ -94,12 +94,25 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Admins podem gerir membros de subgrupos.
 - Cada grupo tem cor e sala própria.
 
+### Admin e moderação
+
+- Separador **Admin** visível apenas para admins.
+- Visão geral de membros, novas entradas, pedidos de apresentação e itens que precisam de atenção.
+- Fila de moderação com novas entradas, pedidos pendentes, check-ins sensíveis, decisões abertas, salas expiradas e cartões de consentimento incompletos.
+- Painel de saúde da plataforma: salas temporárias activas, media sensível, eventos no limite e convites esgotados.
+- Gestão de papéis por membro: `nova pessoa`, `membro` e `admin`.
+- Gestão rápida de presença online/offline.
+- Revisão de mensagens recentes com remoção por admin.
+- Revisão rápida de eventos, decisões e documentos com acções de eliminação.
+- Lista de próximas ideias de moderação/produto para orientar a evolução.
+
 ### Backend e segurança
 
 - Supabase Auth.
 - Tabelas normalizadas.
 - Row Level Security activa.
 - Políticas para leitura/escrita por membros, autores, participantes e admins.
+- Políticas admin para leitura global e eliminação de mensagens.
 - Realtime activado nas tabelas principais.
 - Storage privado para imagens.
 - Migrations versionadas em `supabase/migrations/`.
@@ -197,7 +210,9 @@ npx vercel --prod --yes
 
 - Encriptação real ponta-a-ponta no chat e nas imagens.
 - P2P real ou relay mínimo para mensagens/media sensível.
-- Painel de admin para apagar/suspender membros, remover demo data e rever denúncias.
+- Denúncias/pedidos de ajuda com estado, severidade, responsável e notas internas.
+- Suspensão temporária de membros e revogação de sessões.
+- Audit log para acções de admin: alterações de papel, apagamentos, convites e acessos.
 - Notificações por email/push para convites, apresentações, eventos e decisões abertas.
 - Estados claros de erro/loading em todas as acções.
 - Melhor empty state quando ainda não há dados numa secção.
@@ -219,6 +234,8 @@ npx vercel --prod --yes
 - Cartões de consentimento mais visuais e fáceis de comparar.
 - Regras de contexto para media íntima: quem pode abrir, até quando, em que sala e com que acordo.
 - Decisões que podem nascer directamente de uma conversa do chat.
+- Relatórios mensais de saúde da comunidade: crescimento, conflitos, pedidos pendentes, eventos e decisões paradas.
+- Revisão periódica automática de subgrupos secretos e convites antigos.
 
 ## Nota de produto
 

@@ -39,7 +39,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } fro
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
 type GroupPrivacy = "aberto" | "convite" | "secreto";
-type NavKey = "hoje" | "chat" | "eventos" | "docs" | "conexoes" | "grupos" | "entradas";
+type NavKey = "hoje" | "chat" | "eventos" | "docs" | "conexoes" | "grupos" | "entradas" | "admin";
 type EventVibe = "social" | "discussão" | "festa" | "íntimo" | "público";
 type PhotoPolicy = "sem fotos" | "perguntar primeiro" | "zonas comuns ok";
 type DecisionStatus = "rascunho" | "aberta" | "decidida";
@@ -1463,6 +1463,12 @@ function App() {
     (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
   );
 
+  useEffect(() => {
+    if (activeNav === "admin" && currentMember.role !== "admin") {
+      setActiveNav("hoje");
+    }
+  }, [activeNav, currentMember.role]);
+
   const filteredDocs = state.docs.filter((doc) => {
     const term = search.trim().toLowerCase();
     if (!term) return true;
@@ -1538,6 +1544,37 @@ function App() {
       ),
     }));
     showNotice("Presença atualizada.");
+  }
+
+  async function updateMemberRole(memberId: string, role: MemberRole) {
+    if (currentMember.role !== "admin") {
+      showNotice("Só admins podem alterar papéis.");
+      return;
+    }
+
+    if (memberId === currentMember.id && role !== "admin") {
+      showNotice("Não removas o teu próprio acesso admin.");
+      return;
+    }
+
+    if (usingBackend && supabase && profile?.role === "admin") {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("profiles").update({ role }).eq("id", memberId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Papel atualizado.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      members: current.members.map((member) => (member.id === memberId ? { ...member, role } : member)),
+    }));
+    showNotice("Papel atualizado.");
   }
 
   async function sendMessage(input: MessageInput) {
@@ -1680,6 +1717,38 @@ function App() {
     }
 
     return data?.signedUrl ?? null;
+  }
+
+  async function deleteMessage(messageId: string) {
+    const message = state.messages.find((candidate) => candidate.id === messageId);
+    if (!message) return;
+    const canDelete = currentMember.role === "admin" || message.authorId === currentMember.id;
+    if (!canDelete) {
+      showNotice("Só admins ou quem enviou a mensagem podem eliminar.");
+      return;
+    }
+
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      if (message.imagePath) {
+        await supabase.storage.from("message-images").remove([message.imagePath]);
+      }
+      const { error } = await supabase.from("messages").delete().eq("id", messageId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Mensagem eliminada.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      messages: current.messages.filter((candidate) => candidate.id !== messageId),
+    }));
+    showNotice("Mensagem eliminada.");
   }
 
   function addMember(input: {
@@ -2628,7 +2697,7 @@ function App() {
           </div>
         </div>
 
-        <nav className="nav-list" aria-label="Navegação principal">
+        <nav className={currentMember.role === "admin" ? "nav-list admin-nav" : "nav-list"} aria-label="Navegação principal">
           <NavButton id="hoje" active={activeNav} setActive={setActiveNav} icon={<CircleDot />} label="Hoje" />
           <NavButton id="chat" active={activeNav} setActive={setActiveNav} icon={<MessageCircle />} label="Ao vivo" />
           <NavButton id="eventos" active={activeNav} setActive={setActiveNav} icon={<CalendarDays />} label="Eventos" />
@@ -2636,6 +2705,9 @@ function App() {
           <NavButton id="conexoes" active={activeNav} setActive={setActiveNav} icon={<HeartHandshake />} label="Conexões" />
           <NavButton id="grupos" active={activeNav} setActive={setActiveNav} icon={<Users />} label="Grupos" />
           <NavButton id="entradas" active={activeNav} setActive={setActiveNav} icon={<HandHeart />} label="Entradas" />
+          {currentMember.role === "admin" && (
+            <NavButton id="admin" active={activeNav} setActive={setActiveNav} icon={<ShieldCheck />} label="Admin" />
+          )}
         </nav>
 
         {usingBackend && profile ? (
@@ -2813,6 +2885,34 @@ function App() {
             createInvite={createInvite}
             updateConsentCard={updateConsentCard}
             copyText={copyText}
+          />
+        )}
+
+        {activeNav === "admin" && currentMember.role === "admin" && (
+          <AdminView
+            members={state.members}
+            groups={state.groups}
+            events={upcomingEvents}
+            eventRooms={state.eventRooms}
+            eventCheckIns={state.eventCheckIns}
+            docs={state.docs}
+            decisions={state.decisions}
+            messages={state.messages}
+            inviteCodes={inviteCodes}
+            introductions={state.introductions}
+            privacySettings={state.privacySettings}
+            currentMember={currentMember}
+            memberById={memberById}
+            groupById={groupById}
+            updateMemberRole={updateMemberRole}
+            toggleMemberStatus={toggleMemberStatus}
+            updateIntroductionStatus={updateIntroductionStatus}
+            deleteMessage={deleteMessage}
+            deleteEvent={deleteEvent}
+            deleteEventRoom={deleteEventRoom}
+            deleteDoc={deleteDoc}
+            deleteDecision={deleteDecision}
+            setActiveNav={setActiveNav}
           />
         )}
       </main>
@@ -5057,6 +5157,363 @@ function EntrancesView({
   );
 }
 
+function AdminView({
+  members,
+  groups,
+  events,
+  eventRooms,
+  eventCheckIns,
+  docs,
+  decisions,
+  messages,
+  inviteCodes,
+  introductions,
+  privacySettings,
+  currentMember,
+  memberById,
+  groupById,
+  updateMemberRole,
+  toggleMemberStatus,
+  updateIntroductionStatus,
+  deleteMessage,
+  deleteEvent,
+  deleteEventRoom,
+  deleteDoc,
+  deleteDecision,
+  setActiveNav,
+}: {
+  members: Member[];
+  groups: Group[];
+  events: EventItem[];
+  eventRooms: EventRoom[];
+  eventCheckIns: EventCheckIn[];
+  docs: CommunityDoc[];
+  decisions: DecisionRecord[];
+  messages: ChatMessage[];
+  inviteCodes: InviteCode[];
+  introductions: WarmIntroduction[];
+  privacySettings: PrivacySettings;
+  currentMember: Member;
+  memberById: Map<string, Member>;
+  groupById: Map<string, Group>;
+  updateMemberRole: (memberId: string, role: MemberRole) => Promise<void>;
+  toggleMemberStatus: (memberId: string) => Promise<void>;
+  updateIntroductionStatus: (introductionId: string, status: IntroductionStatus) => Promise<void>;
+  deleteMessage: (messageId: string) => Promise<void>;
+  deleteEvent: (eventId: string) => Promise<void>;
+  deleteEventRoom: (roomId: string) => Promise<void>;
+  deleteDoc: (docId: string) => Promise<void>;
+  deleteDecision: (decisionId: string) => Promise<void>;
+  setActiveNav: (nav: NavKey) => void;
+}) {
+  const now = Date.now();
+  const newMembers = members.filter((member) => member.role === "nova pessoa");
+  const pendingIntroductions = introductions.filter((intro) => intro.status === "pedido");
+  const attentionCheckIns = eventCheckIns.filter((checkIn) => checkIn.mood !== "bem");
+  const openDecisions = decisions.filter((decision) => decision.status !== "decidida");
+  const sensitiveMessages = messages.filter(
+    (message) => message.imagePath || message.imageUrl || message.imageViewOnce || message.imageConsentRequired,
+  );
+  const missingConsent = members.filter(
+    (member) => !member.consentAvailableFor || !member.consentLimits || !member.mediaPreference,
+  );
+  const expiredRooms = eventRooms.filter((room) => new Date(room.expiresAt).getTime() < now);
+  const activeRooms = eventRooms.filter((room) => new Date(room.expiresAt).getTime() >= now);
+  const fullEvents = events.filter((event) => event.attendeeIds.length >= event.capacity);
+  const usedInvites = inviteCodes.filter((invite) => invite.uses >= invite.maxUses);
+  const riskQueue = [
+    ...newMembers.map((member) => ({
+      id: `member-${member.id}`,
+      tone: "warm",
+      title: `Nova entrada: ${member.name}`,
+      detail: `Padrinhe: ${member.sponsorId ? memberById.get(member.sponsorId)?.name : "sem vínculo"}`,
+      action: "Entradas",
+      onAction: () => setActiveNav("entradas"),
+    })),
+    ...pendingIntroductions.map((intro) => ({
+      id: `intro-${intro.id}`,
+      tone: "trust",
+      title: `${memberById.get(intro.requesterId)?.name} pediu apresentação`,
+      detail: `${memberById.get(intro.targetId)?.name} via ${memberById.get(intro.connectorId)?.name}`,
+      action: "Aceitar",
+      onAction: () => updateIntroductionStatus(intro.id, "aceite"),
+    })),
+    ...attentionCheckIns.map((checkIn) => ({
+      id: `check-${checkIn.id}`,
+      tone: "danger",
+      title: `${memberById.get(checkIn.memberId)?.name} marcou ${checkIn.mood}`,
+      detail: `${events.find((event) => event.id === checkIn.eventId)?.title ?? "Evento"} · ${checkIn.note || "sem nota"}`,
+      action: "Eventos",
+      onAction: () => setActiveNav("eventos"),
+    })),
+    ...openDecisions.map((decision) => ({
+      id: `decision-${decision.id}`,
+      tone: "trust",
+      title: `${decision.code} ainda ${decision.status}`,
+      detail: decision.title,
+      action: "Memória",
+      onAction: () => setActiveNav("docs"),
+    })),
+    ...expiredRooms.map((room) => ({
+      id: `room-${room.id}`,
+      tone: "warm",
+      title: `Sala expirada: ${room.name}`,
+      detail: events.find((event) => event.id === room.eventId)?.title ?? "Evento",
+      action: "Apagar",
+      onAction: () => deleteEventRoom(room.id),
+    })),
+    ...missingConsent.slice(0, 4).map((member) => ({
+      id: `consent-${member.id}`,
+      tone: "quiet",
+      title: `${member.name} tem cartão incompleto`,
+      detail: "Faltam limites, disponibilidade ou media.",
+      action: "Entradas",
+      onAction: () => setActiveNav("entradas"),
+    })),
+  ];
+
+  const recentMessages = [...messages].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  const recentDocs = [...docs].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+  );
+  const recentDecisions = [...decisions].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  const soonEvents = events.slice(0, 5);
+  const moderationIdeas = [
+    "Registo de incidentes com estado, severidade e responsáveis.",
+    "Botão de pedido de ajuda discreto para novas pessoas.",
+    "Audit log para alterações admin e apagamentos.",
+    "Modo apresentação que esconde media, notas sensíveis e nomes reais.",
+    "Checklist de onboarding antes de alguém poder entrar em salas íntimas.",
+    "Relatórios mensais de saúde: entradas, saídas, conflitos, decisões abertas.",
+  ];
+
+  return (
+    <section className="admin-layout">
+      <div className="metric-row admin-metrics">
+        <Metric icon={<Users />} label="Membros" value={members.length} accent="#176b63" />
+        <Metric icon={<HandHeart />} label="Novas entradas" value={newMembers.length} accent="#9a5a20" />
+        <Metric icon={<HeartHandshake />} label="Pedidos intro" value={pendingIntroductions.length} accent="#5457a6" />
+        <Metric icon={<ShieldCheck />} label="Itens atenção" value={riskQueue.length} accent="#c4493d" />
+      </div>
+
+      <section className="admin-grid">
+        <section className="surface admin-panel moderation-queue">
+          <SurfaceHeader icon={<ShieldCheck />} title="Fila de moderação" />
+          <div className="admin-alert-list">
+            {riskQueue.length === 0 ? (
+              <p className="empty-note">Nada urgente neste momento.</p>
+            ) : (
+              riskQueue.slice(0, 10).map((item) => (
+                <article className={`admin-alert ${item.tone}`} key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                  <button className="secondary-button" type="button" onClick={item.onAction}>
+                    {item.action}
+                  </button>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="surface admin-panel">
+          <SurfaceHeader icon={<RadioTower />} title="Saúde da plataforma" />
+          <div className="admin-health-grid">
+            <article>
+              <strong>{activeRooms.length}</strong>
+              <span>salas temporárias activas</span>
+            </article>
+            <article>
+              <strong>{sensitiveMessages.length}</strong>
+              <span>mensagens com media sensível</span>
+            </article>
+            <article>
+              <strong>{fullEvents.length}</strong>
+              <span>eventos no limite</span>
+            </article>
+            <article>
+              <strong>{usedInvites.length}</strong>
+              <span>convites esgotados</span>
+            </article>
+          </div>
+          <div className="privacy-status-list">
+            <span className={privacySettings.deviceOnlyMessages ? "ok" : ""}>Mensagens só no dispositivo</span>
+            <span className={privacySettings.localMediaVault ? "ok" : ""}>Cofre local de media</span>
+            <span className={privacySettings.metadataStripping ? "ok" : ""}>Remoção de metadados</span>
+            <span className={privacySettings.p2pReady ? "ok" : ""}>Pronto para P2P</span>
+          </div>
+        </section>
+      </section>
+
+      <section className="admin-grid wide-left">
+        <section className="surface admin-panel">
+          <SurfaceHeader icon={<Users />} title="Membros e papéis" />
+          <div className="admin-member-list">
+            {members.map((member) => {
+              const sponsor = member.sponsorId ? memberById.get(member.sponsorId) : undefined;
+              return (
+                <article className="admin-member-row" key={member.id}>
+                  <div className="avatar">{initials(member.name)}</div>
+                  <div className="admin-member-main">
+                    <h3>{member.name}</h3>
+                    <p>
+                      {member.pronouns} · {sponsor ? `por ${sponsor.name}` : "raiz"} · {member.groupIds.length} grupos
+                    </p>
+                    <div className="admin-tags">
+                      <span>{member.status}</span>
+                      <span>{member.role}</span>
+                      {!member.consentLimits && <span>limites por preencher</span>}
+                    </div>
+                  </div>
+                  <select
+                    aria-label={`Papel de ${member.name}`}
+                    value={member.role}
+                    onChange={(event) => updateMemberRole(member.id, event.target.value as MemberRole)}
+                  >
+                    <option value="nova pessoa">nova pessoa</option>
+                    <option value="membro">membro</option>
+                    <option value="admin">admin</option>
+                  </select>
+                  <button className="secondary-button" type="button" onClick={() => toggleMemberStatus(member.id)}>
+                    {member.status === "online" ? "Pôr offline" : "Pôr online"}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="surface admin-panel">
+          <SurfaceHeader icon={<MessageCircle />} title="Mensagens recentes" />
+          <div className="admin-content-list">
+            {recentMessages.slice(0, 9).map((message) => (
+              <article className="admin-content-row" key={message.id}>
+                <div>
+                  <strong>{memberById.get(message.authorId)?.name ?? "Pessoa"}</strong>
+                  <span>{groupById.get(message.roomId)?.name ?? "Sala"} · {formatClock(message.createdAt)}</span>
+                  <p>{message.body}</p>
+                  <div className="admin-tags">
+                    {message.citationCode && <span>{message.citationCode}</span>}
+                    {message.imageViewOnce && <span>ver uma vez</span>}
+                    {message.imageConsentRequired && <span>envelope privado</span>}
+                  </div>
+                </div>
+                <button
+                  className="icon-only danger"
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Eliminar esta mensagem?")) {
+                      deleteMessage(message.id);
+                    }
+                  }}
+                  title="Eliminar mensagem"
+                >
+                  <Trash2 size={16} aria-hidden />
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      </section>
+
+      <section className="admin-grid thirds">
+        <section className="surface admin-panel">
+          <SurfaceHeader icon={<CalendarDays />} title="Eventos" actionLabel="Abrir" onAction={() => setActiveNav("eventos")} />
+          <div className="admin-content-list">
+            {soonEvents.map((event) => (
+              <article className="admin-content-row" key={event.id}>
+                <div>
+                  <strong>{event.title}</strong>
+                  <span>{formatDay(event.startsAt)} {formatMonth(event.startsAt)} · {event.attendeeIds.length}/{event.capacity}</span>
+                  <p>{event.boundaryNotes || event.place}</p>
+                </div>
+                <button
+                  className="icon-only danger"
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Eliminar "${event.title}"?`)) {
+                      deleteEvent(event.id);
+                    }
+                  }}
+                  title="Eliminar evento"
+                >
+                  <Trash2 size={16} aria-hidden />
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="surface admin-panel">
+          <SurfaceHeader icon={<BookOpenText />} title="Memória" actionLabel="Abrir" onAction={() => setActiveNav("docs")} />
+          <div className="admin-content-list">
+            {recentDecisions.slice(0, 3).map((decision) => (
+              <article className="admin-content-row" key={decision.id}>
+                <div>
+                  <strong>{decision.code}</strong>
+                  <span>{decision.status} · {decision.votes.length} votos</span>
+                  <p>{decision.title}</p>
+                </div>
+                <button
+                  className="icon-only danger"
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Eliminar "${decision.title}"?`)) {
+                      deleteDecision(decision.id);
+                    }
+                  }}
+                  title="Eliminar decisão"
+                >
+                  <Trash2 size={16} aria-hidden />
+                </button>
+              </article>
+            ))}
+            {recentDocs.slice(0, 3).map((doc) => (
+              <article className="admin-content-row" key={doc.id}>
+                <div>
+                  <strong>{doc.code}</strong>
+                  <span>{doc.tags.slice(0, 2).join(" · ") || "sem tags"}</span>
+                  <p>{doc.title}</p>
+                </div>
+                <button
+                  className="icon-only danger"
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Eliminar "${doc.title}"?`)) {
+                      deleteDoc(doc.id);
+                    }
+                  }}
+                  title="Eliminar doc"
+                >
+                  <Trash2 size={16} aria-hidden />
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="surface admin-panel">
+          <SurfaceHeader icon={<Sparkles />} title="Próximas ideias" />
+          <div className="admin-idea-list">
+            {moderationIdeas.map((idea) => (
+              <article key={idea}>
+                <Check size={14} aria-hidden />
+                <span>{idea}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+      </section>
+    </section>
+  );
+}
+
 function Metric({
   icon,
   label,
@@ -5241,6 +5698,7 @@ function navTitle(nav: NavKey) {
     conexoes: "Conexões e confiança",
     grupos: "Comunidade e subgrupos",
     entradas: "Apadrinhamento",
+    admin: "Admin e moderação",
   };
   return titles[nav];
 }
