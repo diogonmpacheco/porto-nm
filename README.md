@@ -138,6 +138,7 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - **Fantasias** com mood, limites, modo e aftercare.
 - **Confessionário** com partilha anónima ou assinada.
 - **Vídeo privado** para salas peer-to-peer entre pessoas convidadas e com aceitação explícita.
+- Vista de vídeo em grelha estilo reunião, modo foco/pessoa destacada e ecrã inteiro por sala ou por janela.
 - Nas salas de vídeo, a câmara/microfone só abrem depois de acção directa da pessoa.
 - Media de vídeo/áudio não é guardada, não é analisada e não passa pelos servidores da aplicação em modo directo.
 - Relay de media existe apenas se TURN estiver configurado e se a pessoa activar a opção explicitamente.

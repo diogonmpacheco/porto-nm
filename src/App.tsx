@@ -14,10 +14,15 @@ import {
   HeartHandshake,
   Heart,
   Image as ImageIcon,
+  LayoutGrid,
   Link2,
   LockKeyhole,
+  Maximize2,
   MessageCircle,
+  Minimize2,
   Network,
+  PanelTop,
+  Pin,
   Plus,
   RadioTower,
   RefreshCw,
@@ -61,6 +66,7 @@ type CommunityTab = "perfil" | "conexoes" | "grupos" | "entradas" | "compersao";
 type MemoryTab = "docs" | "acordos" | "leituras" | "rituais";
 type NocturnoTab = "eroteca" | "provocacoes" | "tensao" | "fantasias" | "confessionario" | "video";
 type CareTab = "ciume" | "reparacao" | "saude" | "mediacao";
+type VideoRoomMode = "gallery" | "focus";
 
 type Member = {
   id: string;
@@ -2056,9 +2062,13 @@ function App() {
       };
 
     if (row.signal_type === "offer") {
+      const offer = row.payload as unknown as RTCSessionDescriptionInit;
+      if (offer.type !== "offer") return;
       const connection = await createDirectPeer(remoteDevice, row.room_id, false);
       if (!connection) return;
-      await connection.peer.setRemoteDescription(row.payload as unknown as RTCSessionDescriptionInit);
+      if (!hasPeerSignalingState(connection.peer, "stable")) return;
+      await connection.peer.setRemoteDescription(offer);
+      if (!hasPeerSignalingState(connection.peer, "have-remote-offer")) return;
       await applyQueuedIce(connection);
       const answer = await connection.peer.createAnswer();
       await connection.peer.setLocalDescription(answer);
@@ -2070,7 +2080,9 @@ function App() {
     if (!connection) return;
 
     if (row.signal_type === "answer") {
-      await connection.peer.setRemoteDescription(row.payload as unknown as RTCSessionDescriptionInit);
+      const answer = row.payload as unknown as RTCSessionDescriptionInit;
+      if (answer.type !== "answer" || !hasPeerSignalingState(connection.peer, "have-local-offer")) return;
+      await connection.peer.setRemoteDescription(answer);
       await applyQueuedIce(connection);
       return;
     }
@@ -2158,7 +2170,7 @@ function App() {
         .limit(100);
 
       ((data ?? []) as P2PSignalRow[]).forEach((row) => {
-        handleP2PSignal(row);
+        void handleP2PSignal(row).catch(() => undefined);
       });
     };
 
@@ -2174,7 +2186,7 @@ function App() {
           filter: `to_device_id=eq.${deviceIdentity.deviceId}`,
         },
         (payload) => {
-          handleP2PSignal(payload.new as P2PSignalRow);
+          void handleP2PSignal(payload.new as P2PSignalRow).catch(() => undefined);
         },
       )
       .subscribe();
@@ -5514,10 +5526,14 @@ function PrivateVideoRooms({
   const [callTitle, setCallTitle] = useState("Sala privada");
   const [relayEnabled, setRelayEnabled] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
+  const [videoMode, setVideoMode] = useState<VideoRoomMode>("gallery");
+  const [spotlightTileId, setSpotlightTileId] = useState("local");
+  const [isStageFullscreen, setIsStageFullscreen] = useState(false);
   const [activeCall, setActiveCall] = useState<ActiveVideoCall | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<RemoteVideoStream[]>([]);
   const [incomingOffers, setIncomingOffers] = useState<IncomingVideoOffer[]>([]);
+  const stageRef = useRef<HTMLElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const activeCallRef = useRef<ActiveVideoCall | null>(null);
   const peerSessionsRef = useRef<Map<string, VideoPeerSession>>(new Map());
@@ -5541,6 +5557,27 @@ function PrivateVideoRooms({
     (deviceKey) => !deviceKey.revokedAt && deviceKey.memberId !== currentMember.id && isRecentlySeenDevice(deviceKey),
   ).length;
   const relayActuallyEnabled = relayEnabled && turnRelayAvailable;
+  const videoTiles = [
+    {
+      id: "local",
+      label: `${currentMember.name} · tu`,
+      muted: true,
+      state: localStream ? ("open" as DirectPeerState) : ("closed" as DirectPeerState),
+      stream: localStream,
+    },
+    ...remoteStreams.map((remoteStream) => ({
+      id: remoteStream.id,
+      label: memberById.get(remoteStream.memberId)?.name ?? "Pessoa",
+      muted: false,
+      state: remoteStream.state,
+      stream: remoteStream.stream,
+    })),
+  ];
+  const spotlightTile =
+    videoTiles.find((tile) => tile.id === spotlightTileId) ??
+    videoTiles.find((tile) => tile.state === "open") ??
+    videoTiles[0];
+  const sideTiles = videoTiles.filter((tile) => tile.id !== spotlightTile.id);
 
   useEffect(() => {
     if (!selectedGroup && memberGroups[0]) {
@@ -5565,6 +5602,23 @@ function PrivateVideoRooms({
   }, [activeCall]);
 
   useEffect(() => {
+    if (!videoTiles.some((tile) => tile.id === spotlightTileId)) {
+      setSpotlightTileId(videoTiles[0]?.id ?? "local");
+    }
+  }, [spotlightTileId, remoteStreams.length, localStream]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsStageFullscreen(document.fullscreenElement === stageRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!supabase || !deviceIdentity) return;
 
     const loadPendingVideoSignals = async () => {
@@ -5577,7 +5631,7 @@ function PrivateVideoRooms({
         .limit(100);
 
       ((data ?? []) as P2PSignalRow[]).forEach((row) => {
-        handleVideoSignal(row);
+        void handleVideoSignal(row);
       });
     };
 
@@ -5593,7 +5647,7 @@ function PrivateVideoRooms({
           filter: `to_device_id=eq.${deviceIdentity.deviceId}`,
         },
         (payload) => {
-          handleVideoSignal(payload.new as P2PSignalRow);
+          void handleVideoSignal(payload.new as P2PSignalRow);
         },
       )
       .subscribe();
@@ -5928,7 +5982,7 @@ function PrivateVideoRooms({
   }
 
   async function answerVideoOffer(offer: IncomingVideoOffer) {
-    if (!offer.payload.description) return;
+    if (!offer.payload.description || offer.payload.description.type !== "offer") return;
     if (!deviceIdentity || !signalReady) {
       showNotice("Este dispositivo ainda não está pronto para vídeo privado.");
       return;
@@ -5967,7 +6021,9 @@ function PrivateVideoRooms({
     try {
       const session = await createVideoPeer(remoteDevice, call, stream, false);
       if (!session) return;
+      if (!hasPeerSignalingState(session.peer, "stable")) return;
       await session.peer.setRemoteDescription(offer.payload.description);
+      if (!hasPeerSignalingState(session.peer, "have-remote-offer")) return;
       await applyQueuedVideoIce(session);
       const answer = await session.peer.createAnswer();
       await session.peer.setLocalDescription(answer);
@@ -6004,7 +6060,7 @@ function PrivateVideoRooms({
     const payload = row.payload;
     const peerKey = makePeerKey(payload.callId, row.from_device_id);
 
-    if (row.signal_type === "offer" && payload.description) {
+    if (row.signal_type === "offer" && payload.description?.type === "offer") {
       const offer: IncomingVideoOffer = {
         signalId: row.id,
         roomId: row.room_id,
@@ -6030,9 +6086,10 @@ function PrivateVideoRooms({
       return;
     }
 
-    if (row.signal_type === "answer" && payload.description) {
+    if (row.signal_type === "answer" && payload.description?.type === "answer") {
       const session = peerSessionsRef.current.get(peerKey);
       if (!session) return;
+      if (!hasPeerSignalingState(session.peer, "have-local-offer")) return;
       try {
         await session.peer.setRemoteDescription(payload.description);
         await applyQueuedVideoIce(session);
@@ -6091,6 +6148,24 @@ function PrivateVideoRooms({
     setSelectedMemberIds((current) =>
       current.includes(memberId) ? current.filter((selectedId) => selectedId !== memberId) : [...current, memberId],
     );
+  }
+
+  async function toggleStageFullscreen() {
+    if (!stageRef.current || !document.fullscreenEnabled) {
+      showNotice("Este browser não permite ecrã inteiro aqui.");
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement === stageRef.current) {
+        await document.exitFullscreen();
+        return;
+      }
+
+      await stageRef.current.requestFullscreen();
+    } catch {
+      showNotice("Não consegui abrir em ecrã inteiro.");
+    }
   }
 
   return (
@@ -6169,7 +6244,7 @@ function PrivateVideoRooms({
         )}
       </form>
 
-      <section className="surface video-stage">
+      <section ref={stageRef} className={isStageFullscreen ? "surface video-stage fullscreen" : "surface video-stage"}>
         <header className="video-stage-header">
           <div>
             <Video size={18} aria-hidden />
@@ -6182,7 +6257,29 @@ function PrivateVideoRooms({
               </p>
             </div>
           </div>
-          {activeCall && <span className="small-pill">{formatClock(activeCall.startedAt)}</span>}
+          <div className="video-meeting-actions" role="group" aria-label="Vista da chamada">
+            {activeCall && <span className="small-pill">{formatClock(activeCall.startedAt)}</span>}
+            <button
+              className={videoMode === "gallery" ? "secondary-button selected" : "secondary-button"}
+              type="button"
+              onClick={() => setVideoMode("gallery")}
+            >
+              <LayoutGrid size={15} aria-hidden />
+              Grelha
+            </button>
+            <button
+              className={videoMode === "focus" ? "secondary-button selected" : "secondary-button"}
+              type="button"
+              onClick={() => setVideoMode("focus")}
+            >
+              <PanelTop size={15} aria-hidden />
+              Foco
+            </button>
+            <button className="secondary-button" type="button" onClick={() => void toggleStageFullscreen()}>
+              {isStageFullscreen ? <Minimize2 size={15} aria-hidden /> : <Maximize2 size={15} aria-hidden />}
+              {isStageFullscreen ? "Sair" : "Ecrã inteiro"}
+            </button>
+          </div>
         </header>
 
         {incomingOffers.length > 0 && (
@@ -6208,40 +6305,83 @@ function PrivateVideoRooms({
           </div>
         )}
 
-        <div className="video-tile-grid">
-          <VideoStreamTile
-            label={`${currentMember.name} · tu`}
-            muted
-            state={localStream ? "open" : "closed"}
-            stream={localStream}
-          />
-          {remoteStreams.map((remoteStream) => (
-            <VideoStreamTile
-              key={remoteStream.id}
-              label={memberById.get(remoteStream.memberId)?.name ?? "Pessoa"}
-              muted={false}
-              state={remoteStream.state}
-              stream={remoteStream.stream}
-            />
-          ))}
-        </div>
+        {videoMode === "focus" ? (
+          <div className={sideTiles.length ? "video-focus-layout" : "video-focus-layout solo"}>
+            <div className="video-focus-main">
+              <VideoStreamTile
+                tileId={spotlightTile.id}
+                label={spotlightTile.label}
+                muted={spotlightTile.muted}
+                state={spotlightTile.state}
+                stream={spotlightTile.stream}
+                isSpotlight
+                onSpotlight={() => setSpotlightTileId(spotlightTile.id)}
+              />
+            </div>
+            {sideTiles.length > 0 && (
+              <div className="video-side-strip" aria-label="Outras pessoas na sala">
+                {sideTiles.map((tile) => (
+                  <VideoStreamTile
+                    key={tile.id}
+                    tileId={tile.id}
+                    label={tile.label}
+                    muted={tile.muted}
+                    state={tile.state}
+                    stream={tile.stream}
+                    compact
+                    isSpotlight={tile.id === spotlightTile.id}
+                    onSpotlight={() => setSpotlightTileId(tile.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="video-tile-grid">
+            {videoTiles.map((tile) => (
+              <VideoStreamTile
+                key={tile.id}
+                tileId={tile.id}
+                label={tile.label}
+                muted={tile.muted}
+                state={tile.state}
+                stream={tile.stream}
+                isSpotlight={tile.id === spotlightTile.id}
+                onSpotlight={() => {
+                  setSpotlightTileId(tile.id);
+                  setVideoMode("focus");
+                }}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </section>
   );
 }
 
 function VideoStreamTile({
+  tileId,
   label,
   muted,
   state,
   stream,
+  compact = false,
+  isSpotlight = false,
+  onSpotlight,
 }: {
+  tileId: string;
   label: string;
   muted: boolean;
   state: DirectPeerState;
   stream: MediaStream | null;
+  compact?: boolean;
+  isSpotlight?: boolean;
+  onSpotlight?: () => void;
 }) {
+  const tileRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const hasVideoTracks = Boolean(stream?.getVideoTracks().length);
 
   useEffect(() => {
@@ -6249,8 +6389,39 @@ function VideoStreamTile({
     videoRef.current.srcObject = stream;
   }, [stream]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === tileRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  async function toggleTileFullscreen() {
+    if (!tileRef.current || !document.fullscreenEnabled) return;
+
+    if (document.fullscreenElement === tileRef.current) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    await tileRef.current.requestFullscreen();
+  }
+
   return (
-    <article className={hasVideoTracks ? "video-tile live" : "video-tile"}>
+    <article
+      ref={tileRef}
+      className={[
+        "video-tile",
+        hasVideoTracks ? "live" : "",
+        compact ? "compact" : "",
+        isSpotlight ? "spotlight" : "",
+      ].filter(Boolean).join(" ")}
+      data-tile-id={tileId}
+    >
       {hasVideoTracks ? (
         <video ref={videoRef} autoPlay playsInline muted={muted} />
       ) : (
@@ -6258,6 +6429,16 @@ function VideoStreamTile({
           <VideoOff size={22} aria-hidden />
         </div>
       )}
+      <div className="video-tile-actions">
+        {onSpotlight && (
+          <button className="icon-only compact" type="button" aria-label={`Destacar ${label}`} onClick={onSpotlight}>
+            <Pin size={14} aria-hidden />
+          </button>
+        )}
+        <button className="icon-only compact" type="button" aria-label={`Ecrã inteiro ${label}`} onClick={() => void toggleTileFullscreen()}>
+          {isFullscreen ? <Minimize2 size={14} aria-hidden /> : <Maximize2 size={14} aria-hidden />}
+        </button>
+      </div>
       <footer>
         <strong>{label}</strong>
         <span>{state === "open" ? "ligado" : state === "connecting" ? "a ligar" : state}</span>
@@ -8902,6 +9083,10 @@ function getVideoRtcConfig(relayEnabled: boolean): RTCConfiguration {
       },
     ],
   };
+}
+
+function hasPeerSignalingState(peer: RTCPeerConnection, state: RTCSignalingState) {
+  return peer.signalingState === state;
 }
 
 function loadState(): CommunityState {
