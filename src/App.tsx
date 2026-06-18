@@ -1244,7 +1244,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${activeNav === "chat" ? "chat-mode" : ""}`}>
       {notice && (
         <div className="toast" role="status" aria-live="polite">
           <Check size={17} aria-hidden />
@@ -1300,7 +1300,7 @@ function App() {
         </button>
       </aside>
 
-      <main className="workspace">
+      <main className={`workspace ${activeNav === "chat" ? "chat-workspace" : ""}`}>
         <header className="topbar">
           <div>
             <p className="eyebrow">quinta, 18 junho 2026</p>
@@ -1750,6 +1750,7 @@ function ChatView({
     );
   });
   const groupMembers = members.filter((member) => member.groupIds.includes(activeGroup.id));
+  const onlineCount = groupMembers.filter((member) => member.status === "online").length;
 
   useEffect(() => {
     if (!imageFile) {
@@ -1889,11 +1890,30 @@ function ChatView({
 
       <section className="surface chat-panel">
         <header className="chat-header">
-          <div>
-            <h3>{activeGroup.name}</h3>
-            <p>Entrega imediata só a equipamentos online nesta sala.</p>
+          <div className="chat-title-block">
+            <div className="chat-avatar" style={{ background: activeGroup.color }}>
+              {initials(activeGroup.name)}
+            </div>
+            <div>
+              <h3>{activeGroup.name}</h3>
+              <p>
+                {onlineCount} online · {groupMembers.length} membros
+              </p>
+            </div>
           </div>
-          <span className="small-pill">{visibleMessages.length} visíveis para {currentMember.name}</span>
+          <select
+            className="mobile-room-select"
+            aria-label="Mudar sala"
+            value={activeGroup.id}
+            onChange={(event) => setActiveGroupId(event.target.value)}
+          >
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+          <span className="small-pill chat-count-pill">{visibleMessages.length} visíveis para {currentMember.name}</span>
         </header>
 
         <div className="message-list" aria-live="polite">
@@ -1949,6 +1969,7 @@ function ChatView({
 
           <div className="composer-row">
             <select
+              className="citation-select"
               aria-label="Documento para citar"
               value={selectedCitation}
               onChange={(event) => setSelectedCitation(event.target.value)}
