@@ -723,11 +723,11 @@ button:disabled {
 
 .presence-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  min-height: 34px;
-  padding: 0 8px;
+  min-height: 38px;
+  padding: 0 8px 0 5px;
   color: var(--ink);
   background: #fff;
   border: 1px solid var(--line);
@@ -737,6 +737,34 @@ button:disabled {
 
 .presence-row.online svg {
   color: var(--teal);
+}
+
+.presence-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  background: var(--indigo);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.presence-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.presence-row.online .presence-avatar {
+  box-shadow: 0 0 0 2px #b9d9cf;
+}
+
+.presence-row.offline .presence-avatar {
+  filter: grayscale(0.35);
+  opacity: 0.72;
 }
 
 .presence-row.offline {
@@ -841,41 +869,93 @@ button:disabled {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 9px;
+  gap: 7px;
   min-height: 320px;
   max-height: calc(100vh - 244px);
-  padding: 13px;
+  padding: 11px;
+  background: #eef1ed;
   overflow: auto;
 }
 
-.message {
+.message-row {
+  display: flex;
+  align-items: flex-end;
   align-self: flex-start;
-  width: min(660px, 92%);
-  padding: 10px 11px;
-  background: #f5f7f2;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  gap: 7px;
+  max-width: min(540px, 82%);
+}
+
+.message-row.own {
+  align-self: flex-end;
+  justify-content: flex-end;
+}
+
+.message-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  background: var(--indigo);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 900;
+  box-shadow: 0 1px 2px rgba(35, 48, 50, 0.12);
+}
+
+.message-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.message {
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 9px 5px;
+  background: #fff;
+  border: 0;
+  border-radius: 14px 14px 14px 4px;
+  box-shadow: 0 1px 1px rgba(35, 48, 50, 0.12);
 }
 
 .message.own {
-  align-self: flex-end;
-  background: #eef7f3;
-  border-color: #b9d9cf;
+  background: #d9fdd3;
+  border-radius: 14px 14px 4px 14px;
 }
 
-.message header,
-.message footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--muted);
+.message-author {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--teal);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 850;
+  line-height: 1.2;
 }
 
 .message p {
-  margin: 8px 0;
+  margin: 0;
   overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.34;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.delivery-check {
+  display: inline-flex;
+  color: var(--teal);
 }
 
 .message p.locked-message {
@@ -883,28 +963,33 @@ button:disabled {
   font-style: italic;
 }
 
-.message footer {
-  align-items: center;
-  justify-content: flex-start;
-}
-
 .citation-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 9px;
+  gap: 5px;
+  min-height: 23px;
+  max-width: 100%;
+  padding: 0 7px;
   color: #2b3d72;
   background: #eef0ff;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 4px;
   align-items: center;
+  margin-top: 4px;
+}
+
+.message-actions .icon-only.compact {
+  width: 24px;
+  height: 24px;
 }
 
 .composer {
@@ -2882,7 +2967,7 @@ button:disabled {
   .message-list {
     min-height: 360px;
     max-height: calc(100dvh - 312px);
-    gap: 6px;
+    gap: 7px;
     padding: 10px 8px 12px;
     background: #eef1ed;
   }
@@ -2892,48 +2977,38 @@ button:disabled {
     max-height: none;
   }
 
+  .message-row {
+    max-width: 92%;
+    gap: 6px;
+  }
+
+  .message-avatar {
+    width: 27px;
+    height: 27px;
+  }
+
   .message {
-    width: min(86%, 390px);
-    padding: 7px 9px 5px;
-    background: #fff;
-    border: 0;
-    border-radius: 8px 8px 8px 2px;
-    box-shadow: 0 1px 1px rgba(35, 48, 50, 0.1);
+    padding: 6px 8px 4px;
+    border-radius: 14px 14px 14px 4px;
   }
 
   .message.own {
-    background: #d9fdd3;
-    border-color: transparent;
-    border-radius: 8px 8px 2px 8px;
+    border-radius: 14px 14px 4px 14px;
   }
 
-  .message header {
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 8px;
+  .message-author {
+    margin-bottom: 1px;
     font-size: 11px;
   }
 
-  .message header strong {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .message header span {
-    margin-left: auto;
-    white-space: nowrap;
-  }
-
   .message p {
-    margin: 3px 0 0;
     font-size: 14px;
     line-height: 1.35;
   }
 
-  .message footer {
-    display: none;
+  .message-meta {
+    margin-top: 1px;
+    font-size: 10px;
   }
 
   .message-actions {
@@ -2942,8 +3017,8 @@ button:disabled {
 
   .citation-chip {
     max-width: 100%;
-    min-height: 28px;
-    font-size: 12px;
+    min-height: 22px;
+    font-size: 11px;
   }
 
   .message-image {
@@ -3565,12 +3640,18 @@ button:disabled {
   }
 
   .presence-row {
-    grid-template-columns: 16px minmax(0, 1fr) auto;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
     gap: 6px;
-    min-height: 28px;
-    padding: 0 7px;
+    min-height: 30px;
+    padding: 0 7px 0 4px;
     border-radius: 7px;
     font-size: 11px;
+  }
+
+  .presence-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 9px;
   }
 
   .presence-row small {
@@ -3599,35 +3680,44 @@ button:disabled {
   }
 
   .message-list {
-    gap: 6px;
+    gap: 7px;
     min-height: 260px;
     max-height: calc(100vh - 178px);
     padding: 7px;
   }
 
-  .message {
-    width: min(560px, 86%);
-    padding: 7px 8px;
-    border-radius: 7px;
+  .message-row {
+    max-width: min(500px, 80%);
   }
 
-  .message header,
-  .message footer {
-    gap: 8px;
-    font-size: 10px;
+  .message-avatar {
+    width: 26px;
+    height: 26px;
+  }
+
+  .message {
+    padding: 6px 8px 4px;
+    border-radius: 13px 13px 13px 4px;
+  }
+
+  .message.own {
+    border-radius: 13px 13px 4px 13px;
   }
 
   .message p {
-    margin: 5px 0;
     font-size: 13px;
     line-height: 1.35;
   }
 
+  .message-author {
+    font-size: 11px;
+  }
+
   .citation-chip {
     gap: 5px;
-    min-height: 24px;
+    min-height: 22px;
     padding: 0 6px;
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .message-actions {

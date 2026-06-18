@@ -38,7 +38,6 @@ import {
   VideoOff,
   Vote,
   Wifi,
-  WifiOff,
   X,
 } from "lucide-react";
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
@@ -637,6 +636,32 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const supabase =
   supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+
+const demoAvatarUrlsById: Record<string, string> = {
+  m_di: "/avatars/di.svg",
+  m_ana: "/avatars/ana.svg",
+  m_miguel: "/avatars/miguel.svg",
+  m_lia: "/avatars/lia.svg",
+  demo_ines: "/avatars/ines.svg",
+  demo_joao: "/avatars/joao.svg",
+  demo_carolina: "/avatars/carolina.svg",
+  demo_rita: "/avatars/rita.svg",
+  demo_nuno: "/avatars/nuno.svg",
+};
+
+const demoAvatarUrlsByName: Record<string, string> = {
+  "Admin Porto NM": "/avatars/admin.svg",
+  "Teste Porto NM": "/avatars/tester.svg",
+  Di: "/avatars/di.svg",
+  "Ana R.": "/avatars/ana.svg",
+  "Miguel S.": "/avatars/miguel.svg",
+  "Lia P.": "/avatars/lia.svg",
+  "Inês Faria": "/avatars/ines.svg",
+  "João Matos": "/avatars/joao.svg",
+  "Carolina Vale": "/avatars/carolina.svg",
+  "Rita Lopes": "/avatars/rita.svg",
+  "Nuno Seabra": "/avatars/nuno.svg",
+};
 
 type SyncStatus = "local" | "auth" | "loading" | "connected" | "saving" | "error";
 
@@ -3791,7 +3816,6 @@ function App() {
             markImageOpened={markImageOpened}
             getMessageImageUrl={getMessageImageUrl}
             deviceSecurityStatus={deviceSecurityStatus}
-            knownDeviceCount={deviceKeys.length}
             directPeerCount={directPeerCount}
             toggleMemberStatus={toggleMemberStatus}
             addGroup={addGroup}
@@ -4222,7 +4246,6 @@ function ChatView({
   markImageOpened,
   getMessageImageUrl,
   deviceSecurityStatus,
-  knownDeviceCount,
   directPeerCount,
   toggleMemberStatus,
   addGroup,
@@ -4245,7 +4268,6 @@ function ChatView({
   markImageOpened: (messageId: string) => Promise<boolean>;
   getMessageImageUrl: (message: ChatMessage) => Promise<string | null>;
   deviceSecurityStatus: DeviceSecurityStatus;
-  knownDeviceCount: number;
   directPeerCount: number;
   toggleMemberStatus: (id: string) => void;
   addGroup: (input: { name: string; focus: string; privacy: GroupPrivacy; stewardId: string }) => Promise<boolean>;
@@ -4555,7 +4577,7 @@ function ChatView({
               onClick={() => toggleMemberStatus(member.id)}
               title="Alternar ligação"
             >
-              {member.status === "online" ? <Wifi size={17} aria-hidden /> : <WifiOff size={17} aria-hidden />}
+              <MemberAvatar member={member} className="presence-avatar" />
               <span>{member.name}</span>
               <small>{member.status}</small>
             </button>
@@ -4591,12 +4613,14 @@ function ChatView({
           <div className="chat-status-pills">
             <span className={`small-pill encryption-pill ${encryptionReady ? "ready" : deviceSecurityStatus}`}>
               <LockKeyhole size={13} aria-hidden />
-              {encryptionReady ? `Relay cifrado · ${knownDeviceCount} disp.` : "Cifra a preparar"}
+              {encryptionReady ? "Privado" : "A preparar"}
             </span>
-            <span className={`small-pill direct-pill ${directPeerCount > 0 ? "ready" : "idle"}`}>
-              <RadioTower size={13} aria-hidden />
-              {directPeerCount > 0 ? `Directo · ${directPeerCount}` : "Directo em espera"}
-            </span>
+            {directPeerCount > 0 && (
+              <span className="small-pill direct-pill ready">
+                <RadioTower size={13} aria-hidden />
+                P2P
+              </span>
+            )}
             <span className="small-pill chat-count-pill">{visibleMessages.length} visíveis para {currentMember.name}</span>
           </div>
         </header>
@@ -4607,45 +4631,40 @@ function ChatView({
             const citedDoc = message.citationCode ? docsByCode.get(message.citationCode) : undefined;
             const citedDecision = message.citationCode ? decisionsByCode.get(message.citationCode) : undefined;
             const citedTitle = citedDoc?.title ?? citedDecision?.title;
+            const isOwnMessage = message.authorId === currentMember.id;
             return (
-              <article className={`message ${message.authorId === currentMember.id ? "own" : ""}`} key={message.id}>
-                <header>
-                  <strong>{author?.name ?? "Pessoa"}</strong>
-                  <span>{formatClock(message.createdAt)}</span>
-                </header>
-                <p className={message.encryptionStatus === "locked" ? "locked-message" : ""}>{message.body}</p>
-                {renderMessageImage(message)}
-                {citedTitle && (
-                  <div className="message-actions">
-                    <button className="citation-chip" type="button" onClick={() => setSelectedCitation(message.citationCode ?? "")}>
-                      <Link2 size={14} aria-hidden />
-                      {citedTitle}
-                    </button>
-                    <button
-                      className="icon-only compact"
-                      type="button"
-                      onClick={() => copyText(message.citationCode ?? "", `${message.citationCode} copiado.`)}
-                      title="Copiar código"
-                    >
-                      <Copy size={15} aria-hidden />
-                    </button>
-                  </div>
-                )}
-                <footer>
-                  {message.encryptionVersion > 0 ? (
-                    <>
-                      <LockKeyhole size={12} aria-hidden />
-                      Cifrada para {message.encryptedDeviceCount} dispositivo
-                      {message.encryptedDeviceCount === 1 ? "" : "s"}
-                    </>
-                  ) : (
-                    <>
-                      Entregue a {message.recipientsAtSend.length} equipamento
-                      {message.recipientsAtSend.length === 1 ? "" : "s"}
-                    </>
+              <div className={`message-row ${isOwnMessage ? "own" : ""}`} key={message.id}>
+                {!isOwnMessage && author && <MemberAvatar member={author} className="message-avatar" />}
+                <article className={`message ${isOwnMessage ? "own" : ""}`}>
+                  {!isOwnMessage && <strong className="message-author">{author?.name ?? "Pessoa"}</strong>}
+                  <p className={message.encryptionStatus === "locked" ? "locked-message" : ""}>{message.body}</p>
+                  {renderMessageImage(message)}
+                  {citedTitle && (
+                    <div className="message-actions">
+                      <button className="citation-chip" type="button" onClick={() => setSelectedCitation(message.citationCode ?? "")}>
+                        <Link2 size={14} aria-hidden />
+                        {citedTitle}
+                      </button>
+                      <button
+                        className="icon-only compact"
+                        type="button"
+                        onClick={() => copyText(message.citationCode ?? "", `${message.citationCode} copiado.`)}
+                        title="Copiar código"
+                      >
+                        <Copy size={15} aria-hidden />
+                      </button>
+                    </div>
                   )}
-                </footer>
-              </article>
+                  <div className="message-meta">
+                    <span>{formatClock(message.createdAt)}</span>
+                    {isOwnMessage && (
+                      <span className="delivery-check">
+                        <Check size={12} aria-hidden />
+                      </span>
+                    )}
+                  </div>
+                </article>
+              </div>
             );
           })}
         </div>
@@ -8732,10 +8751,15 @@ function Metric({
   );
 }
 
+function getDemoAvatarUrl(member: Member) {
+  return demoAvatarUrlsById[member.id] ?? demoAvatarUrlsByName[member.name];
+}
+
 function MemberAvatar({ member, className = "avatar" }: { member: Member; className?: string }) {
+  const avatarUrl = member.avatarUrl || getDemoAvatarUrl(member);
   return (
     <div className={className}>
-      {member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : initials(member.name)}
+      {avatarUrl ? <img src={avatarUrl} alt="" /> : initials(member.name)}
     </div>
   );
 }
