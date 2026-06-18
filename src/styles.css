@@ -942,6 +942,17 @@ button:disabled {
   gap: 10px;
 }
 
+.event-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.event-actions .secondary-button {
+  white-space: nowrap;
+}
+
 .attendee-row,
 .invitee-row,
 .doc-row footer {
@@ -1083,6 +1094,11 @@ button:disabled {
   place-items: center;
   color: var(--teal);
   background: #edf6f2;
+}
+
+.icon-only.danger {
+  color: #a83c34;
+  background: #fff0ee;
 }
 
 .icon-only.compact {
@@ -1336,9 +1352,18 @@ button:disabled {
   .composer .secondary-button,
   .view-once-toggle,
   .event-card .secondary-button,
+  .event-actions,
   .form-panel .primary-button,
   .form-panel .secondary-button {
     width: 100%;
+  }
+
+  .event-actions {
+    justify-content: stretch;
+  }
+
+  .event-actions .secondary-button {
+    flex: 1;
   }
 
   .event-card time,

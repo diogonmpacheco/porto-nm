@@ -18,6 +18,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Users,
   Wifi,
   WifiOff,
@@ -58,6 +59,7 @@ type EventItem = {
   place: string;
   groupId: string;
   capacity: number;
+  createdBy: string | null;
   attendeeIds: string[];
 };
 
@@ -270,6 +272,7 @@ const seedState: CommunityState = {
       place: "Bonfim",
       groupId: "g_eventos",
       capacity: 12,
+      createdBy: "m_di",
       attendeeIds: ["m_di", "m_ana", "m_lia"],
     },
     {
@@ -279,6 +282,7 @@ const seedState: CommunityState = {
       place: "Cedofeita",
       groupId: "g_geral",
       capacity: 24,
+      createdBy: "m_ana",
       attendeeIds: ["m_di", "m_miguel"],
     },
   ],
@@ -428,6 +432,7 @@ function App() {
       place: row.place,
       groupId: row.group_id,
       capacity: row.capacity,
+      createdBy: row.created_by,
       attendeeIds: attendeeIdsByEvent.get(row.id) ?? [],
     }));
 
@@ -907,11 +912,41 @@ function App() {
       place: input.place.trim(),
       groupId: input.groupId,
       capacity: input.capacity,
+      createdBy: currentMember.id,
       attendeeIds: [currentMember.id],
     };
     updateState((current) => ({ ...current, events: [...current.events, event] }));
     showNotice("Evento criado.");
     return true;
+  }
+
+  async function deleteEvent(eventId: string) {
+    const event = state.events.find((candidate) => candidate.id === eventId);
+    if (!event) return;
+    const canDelete = currentMember.role === "admin" || event.createdBy === currentMember.id;
+    if (!canDelete) {
+      showNotice("Só admins ou quem criou o evento podem eliminar.");
+      return;
+    }
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("events").delete().eq("id", eventId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Evento eliminado.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      events: current.events.filter((candidate) => candidate.id !== eventId),
+    }));
+    showNotice("Evento eliminado.");
   }
 
   async function toggleRsvp(eventId: string) {
@@ -996,6 +1031,44 @@ function App() {
     setSelectedCitation(doc.code);
     showNotice(`${doc.code} guardado e pronto para citar.`);
     return true;
+  }
+
+  async function deleteDoc(docId: string) {
+    const doc = state.docs.find((candidate) => candidate.id === docId);
+    if (!doc) return;
+    const canDelete = currentMember.role === "admin" || doc.ownerId === currentMember.id;
+    if (!canDelete) {
+      showNotice("Só admins ou quem criou o doc podem eliminar.");
+      return;
+    }
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("docs").delete().eq("id", docId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      if (selectedCitation === doc.code) {
+        setSelectedCitation("");
+      }
+      await fetchBackendData();
+      showNotice(`${doc.code} eliminado.`);
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      docs: current.docs.filter((candidate) => candidate.id !== docId),
+      messages: current.messages.map((message) =>
+        message.citationCode === doc.code ? { ...message, citationCode: undefined } : message,
+      ),
+    }));
+    if (selectedCitation === doc.code) {
+      setSelectedCitation("");
+    }
+    showNotice(`${doc.code} eliminado.`);
   }
 
   async function addGroup(input: {
@@ -1299,6 +1372,7 @@ function App() {
             memberById={memberById}
             groupById={groupById}
             addEvent={addEvent}
+            deleteEvent={deleteEvent}
             toggleRsvp={toggleRsvp}
           />
         )}
@@ -1314,6 +1388,7 @@ function App() {
             selectedCitation={selectedCitation}
             setSelectedCitation={setSelectedCitation}
             addDoc={addDoc}
+            deleteDoc={deleteDoc}
             copyText={copyText}
             showNotice={showNotice}
           />
@@ -1924,6 +1999,7 @@ function EventsView({
   memberById,
   groupById,
   addEvent,
+  deleteEvent,
   toggleRsvp,
 }: {
   events: EventItem[];
@@ -1938,6 +2014,7 @@ function EventsView({
     groupId: string;
     capacity: number;
   }) => Promise<boolean>;
+  deleteEvent: (eventId: string) => Promise<void>;
   toggleRsvp: (eventId: string) => void;
 }) {
   const [form, setForm] = useState({
@@ -2010,6 +2087,7 @@ function EventsView({
       <section className="event-board">
         {events.map((event) => {
           const attending = event.attendeeIds.includes(currentMember.id);
+          const canDelete = currentMember.role === "admin" || event.createdBy === currentMember.id;
           return (
             <article className="surface event-card" key={event.id}>
               <time dateTime={event.startsAt}>
@@ -2030,14 +2108,30 @@ function EventsView({
                   ))}
                 </div>
               </div>
-              <button
-                className={attending ? "secondary-button selected" : "secondary-button"}
-                type="button"
-                onClick={() => toggleRsvp(event.id)}
-              >
-                <Check size={16} aria-hidden />
-                {attending ? "Presente" : "Confirmar"}
-              </button>
+              <div className="event-actions">
+                <button
+                  className={attending ? "secondary-button selected" : "secondary-button"}
+                  type="button"
+                  onClick={() => toggleRsvp(event.id)}
+                >
+                  <Check size={16} aria-hidden />
+                  {attending ? "Presente" : "Confirmar"}
+                </button>
+                {canDelete && (
+                  <button
+                    className="icon-only danger"
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Eliminar "${event.title}"?`)) {
+                        deleteEvent(event.id);
+                      }
+                    }}
+                    title="Eliminar evento"
+                  >
+                    <Trash2 size={17} aria-hidden />
+                  </button>
+                )}
+              </div>
             </article>
           );
         })}
@@ -2056,6 +2150,7 @@ function DocsView({
   selectedCitation,
   setSelectedCitation,
   addDoc,
+  deleteDoc,
   copyText,
   showNotice,
 }: {
@@ -2068,6 +2163,7 @@ function DocsView({
   selectedCitation: string;
   setSelectedCitation: (code: string) => void;
   addDoc: (input: { title: string; summary: string; tags: string }) => Promise<boolean>;
+  deleteDoc: (docId: string) => Promise<void>;
   copyText: (value: string, message: string) => Promise<void>;
   showNotice: (message: string) => void;
 }) {
@@ -2094,41 +2190,58 @@ function DocsView({
           />
         </div>
         <div className="doc-list">
-          {docs.map((doc) => (
-            <article className={`doc-row ${selectedCitation === doc.code ? "selected" : ""}`} key={doc.id}>
-              <div>
-                <span className="doc-code">{doc.code}</span>
-                <h3>{doc.title}</h3>
-                <p>{doc.summary}</p>
-                <footer>
-                  {doc.tags.map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
-                </footer>
-              </div>
-              <div className="doc-actions">
-                <button
-                  className="icon-only"
-                  type="button"
-                  onClick={() => {
-                    setSelectedCitation(doc.code);
-                    showNotice(`${doc.code} selecionado para o chat.`);
-                  }}
-                  title="Usar no chat"
-                >
-                  <Link2 size={17} aria-hidden />
-                </button>
-                <button
-                  className="icon-only"
-                  type="button"
-                  onClick={() => copyText(doc.code, `${doc.code} copiado.`)}
-                  title="Copiar código"
-                >
-                  <Copy size={17} aria-hidden />
-                </button>
-              </div>
-            </article>
-          ))}
+          {docs.map((doc) => {
+            const canDelete = currentMember.role === "admin" || doc.ownerId === currentMember.id;
+            return (
+              <article className={`doc-row ${selectedCitation === doc.code ? "selected" : ""}`} key={doc.id}>
+                <div>
+                  <span className="doc-code">{doc.code}</span>
+                  <h3>{doc.title}</h3>
+                  <p>{doc.summary}</p>
+                  <footer>
+                    {doc.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </footer>
+                </div>
+                <div className="doc-actions">
+                  <button
+                    className="icon-only"
+                    type="button"
+                    onClick={() => {
+                      setSelectedCitation(doc.code);
+                      showNotice(`${doc.code} selecionado para o chat.`);
+                    }}
+                    title="Usar no chat"
+                  >
+                    <Link2 size={17} aria-hidden />
+                  </button>
+                  <button
+                    className="icon-only"
+                    type="button"
+                    onClick={() => copyText(doc.code, `${doc.code} copiado.`)}
+                    title="Copiar código"
+                  >
+                    <Copy size={17} aria-hidden />
+                  </button>
+                  {canDelete && (
+                    <button
+                      className="icon-only danger"
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Eliminar "${doc.title}"?`)) {
+                          deleteDoc(doc.id);
+                        }
+                      }}
+                      title="Eliminar doc"
+                    >
+                      <Trash2 size={17} aria-hidden />
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </div>
 
