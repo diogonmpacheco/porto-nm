@@ -65,3 +65,32 @@ npx vercel --prod --yes
 ```
 
 The current schema lives in `supabase/migrations/`.
+
+## Feature Backlog
+
+### Decisões
+
+The community needs a dedicated decision archive so settled topics do not disappear inside chat flow. This feature should turn repeated discussions into stable, citeable records.
+
+Core model:
+
+- `decisions`: title, context, final decision text, status, group/subgroup, facilitator, decided_at, created_by.
+- `decision_minutes`: ata text, discussion summary, objections/concerns, links to related docs or chat excerpts.
+- `decision_votes`: decision_id, member_id, vote (`favor`, `contra`, `abstencao`, `bloqueio`), optional comment, voted_at.
+- `decision_links`: related docs, events, groups, and previous decisions.
+
+Expected UX:
+
+- A new **Decisões** section beside Docs.
+- Create a draft decision from a chat/document/group discussion.
+- Record the ata and proposal text.
+- Collect votes from eligible members.
+- Finalize the decision so it becomes immutable except by guardiãs.
+- Cite finalized decisions in chat and docs using stable codes like `DEC-001`.
+
+Permissions:
+
+- Members can read finalized decisions.
+- Members can vote while a decision is open.
+- Guardians can create, reopen, correct, or archive decisions.
+- Subgroup decisions should only be visible to members of that subgroup when the group is private/secret.
