@@ -1,0 +1,1 @@
+-- No seed data yet. The app creates the initial shared prototype state on first load.
