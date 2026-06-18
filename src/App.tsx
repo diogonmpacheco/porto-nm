@@ -5,8 +5,11 @@ import {
   ChevronRight,
   CircleDot,
   Copy,
+  Eye,
+  EyeOff,
   FilePlus2,
   HandHeart,
+  Image as ImageIcon,
   Link2,
   MessageCircle,
   Network,
@@ -18,9 +21,10 @@ import {
   Users,
   Wifi,
   WifiOff,
+  X,
 } from "lucide-react";
 import { createClient, Session } from "@supabase/supabase-js";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
@@ -75,6 +79,12 @@ type ChatMessage = {
   createdAt: string;
   recipientsAtSend: string[];
   citationCode?: string;
+  imagePath?: string;
+  imageUrl?: string;
+  imageName?: string;
+  imageMimeType?: string;
+  imageViewOnce: boolean;
+  imageOpenedBy: string[];
 };
 
 type CommunityState = {
@@ -93,6 +103,12 @@ type InviteCode = {
   uses: number;
   expiresAt: string | null;
   createdAt: string;
+};
+
+type MessageInput = {
+  body: string;
+  imageFile?: File | null;
+  imageViewOnce?: boolean;
 };
 
 type ProfileRow = {
@@ -152,6 +168,11 @@ type MessageRow = {
   created_at: string;
   recipients_at_send: string[] | null;
   citation_code: string | null;
+  image_path: string | null;
+  image_name: string | null;
+  image_mime_type: string | null;
+  image_view_once: boolean | null;
+  image_opened_by: string[] | null;
 };
 
 type InviteRow = {
@@ -302,6 +323,8 @@ const seedState: CommunityState = {
       createdAt: "2026-06-18T09:36:00",
       recipientsAtSend: ["m_ana", "m_lia"],
       citationCode: "DOC-001",
+      imageViewOnce: false,
+      imageOpenedBy: [],
     },
   ],
 };
@@ -418,15 +441,37 @@ function App() {
       tags: row.tags ?? [],
     }));
 
-    const messages = ((messagesResult.data ?? []) as MessageRow[]).map((row) => ({
-      id: row.id,
-      roomId: row.room_id,
-      authorId: row.author_id,
-      body: row.body,
-      createdAt: row.created_at,
-      recipientsAtSend: row.recipients_at_send ?? [],
-      citationCode: row.citation_code ?? undefined,
-    }));
+    const messages = await Promise.all(
+      ((messagesResult.data ?? []) as MessageRow[]).map(async (row) => {
+        const imageOpenedBy = row.image_opened_by ?? [];
+        const imageViewOnce = Boolean(row.image_view_once);
+        const isAuthor = row.author_id === session.user.id;
+        let imageUrl: string | undefined;
+
+        if (row.image_path && (isAuthor || !imageViewOnce)) {
+          const { data } = await supabase.storage
+            .from("message-images")
+            .createSignedUrl(row.image_path, 60 * 60);
+          imageUrl = data?.signedUrl;
+        }
+
+        return {
+          id: row.id,
+          roomId: row.room_id,
+          authorId: row.author_id,
+          body: row.body,
+          createdAt: row.created_at,
+          recipientsAtSend: row.recipients_at_send ?? [],
+          citationCode: row.citation_code ?? undefined,
+          imagePath: row.image_path ?? undefined,
+          imageUrl,
+          imageName: row.image_name ?? undefined,
+          imageMimeType: row.image_mime_type ?? undefined,
+          imageViewOnce,
+          imageOpenedBy,
+        };
+      }),
+    );
 
     const invites = ((invitesResult.data ?? []) as InviteRow[]).map((row) => ({
       code: row.code,
@@ -673,9 +718,22 @@ function App() {
     showNotice("Presença atualizada.");
   }
 
-  async function sendMessage(body: string) {
-    const trimmed = body.trim();
-    if (!trimmed) return false;
+  async function sendMessage(input: MessageInput) {
+    const trimmed = input.body.trim();
+    const imageFile = input.imageFile ?? null;
+    const hasImage = Boolean(imageFile);
+    if (!trimmed && !imageFile) return false;
+
+    if (imageFile && !imageFile.type.startsWith("image/")) {
+      showNotice("Escolhe um ficheiro de imagem.");
+      return false;
+    }
+
+    if (imageFile && imageFile.size > 10 * 1024 * 1024) {
+      showNotice("A imagem deve ter menos de 10 MB.");
+      return false;
+    }
+
     const groupMembers = state.members.filter((member) => member.groupIds.includes(activeGroup.id));
     const recipientsAtSend = groupMembers
       .filter((member) => member.status === "online" && member.id !== currentMember.id)
@@ -683,13 +741,37 @@ function App() {
 
     if (usingBackend && supabase && profile) {
       setSyncStatus("saving");
+      const messageId = crypto.randomUUID();
+      let imagePath: string | undefined;
+
+      if (imageFile) {
+        imagePath = `${profile.id}/${messageId}-${safeFileName(imageFile.name)}`;
+        const { error: uploadError } = await supabase.storage
+          .from("message-images")
+          .upload(imagePath, imageFile, {
+            cacheControl: "3600",
+            contentType: imageFile.type,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          setSyncStatus("error");
+          setSyncMessage(uploadError.message);
+          return false;
+        }
+      }
+
       const { error } = await supabase.from("messages").insert({
-        id: crypto.randomUUID(),
+        id: messageId,
         room_id: activeGroup.id,
         author_id: profile.id,
-        body: trimmed,
+        body: trimmed || (hasImage ? "Imagem" : ""),
         recipients_at_send: recipientsAtSend,
         citation_code: selectedCitation || null,
+        image_path: imagePath ?? null,
+        image_name: imageFile?.name ?? null,
+        image_mime_type: imageFile?.type ?? null,
+        image_view_once: Boolean(input.imageViewOnce),
       });
       if (error) {
         setSyncStatus("error");
@@ -697,9 +779,11 @@ function App() {
         return false;
       }
       await fetchBackendData();
-      showNotice("Mensagem enviada.");
+      showNotice(hasImage ? "Imagem enviada." : "Mensagem enviada.");
       return true;
     }
+
+    const imageUrl = imageFile ? await fileToDataUrl(imageFile) : undefined;
 
     updateState((current) => ({
       ...current,
@@ -709,15 +793,61 @@ function App() {
           id: crypto.randomUUID(),
           roomId: activeGroup.id,
           authorId: currentMember.id,
-          body: trimmed,
+          body: trimmed || (hasImage ? "Imagem" : ""),
           createdAt: new Date().toISOString(),
           recipientsAtSend,
           citationCode: selectedCitation || undefined,
+          imageUrl,
+          imageName: imageFile?.name,
+          imageMimeType: imageFile?.type,
+          imageViewOnce: Boolean(input.imageViewOnce),
+          imageOpenedBy: [],
         },
       ],
     }));
-    showNotice("Mensagem enviada.");
+    showNotice(hasImage ? "Imagem enviada." : "Mensagem enviada.");
     return true;
+  }
+
+  async function markImageOpened(messageId: string) {
+    if (usingBackend && supabase && profile) {
+      const { error } = await supabase.rpc("mark_message_image_opened", { _message_id: messageId });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      showNotice("Imagem aberta uma vez.");
+      return true;
+    }
+
+    updateState((current) => ({
+      ...current,
+      messages: current.messages.map((message) =>
+        message.id === messageId && !message.imageOpenedBy.includes(currentMember.id)
+          ? { ...message, imageOpenedBy: [...message.imageOpenedBy, currentMember.id] }
+          : message,
+      ),
+    }));
+    showNotice("Imagem aberta uma vez.");
+    return true;
+  }
+
+  async function getMessageImageUrl(message: ChatMessage) {
+    if (message.imageUrl) return message.imageUrl;
+    if (!usingBackend || !supabase || !message.imagePath) return null;
+
+    const { data, error } = await supabase.storage
+      .from("message-images")
+      .createSignedUrl(message.imagePath, message.imageViewOnce ? 60 : 60 * 60);
+
+    if (error) {
+      setSyncStatus("error");
+      setSyncMessage(error.message);
+      return null;
+    }
+
+    return data?.signedUrl ?? null;
   }
 
   function addMember(input: {
@@ -1153,8 +1283,11 @@ function App() {
             setActiveGroupId={setActiveGroupId}
             setSelectedCitation={setSelectedCitation}
             sendMessage={sendMessage}
+            markImageOpened={markImageOpened}
+            getMessageImageUrl={getMessageImageUrl}
             toggleMemberStatus={toggleMemberStatus}
             copyText={copyText}
+            showNotice={showNotice}
           />
         )}
 
@@ -1504,8 +1637,11 @@ function ChatView({
   setActiveGroupId,
   setSelectedCitation,
   sendMessage,
+  markImageOpened,
+  getMessageImageUrl,
   toggleMemberStatus,
   copyText,
+  showNotice,
 }: {
   members: Member[];
   groups: Group[];
@@ -1518,11 +1654,19 @@ function ChatView({
   selectedCitation: string;
   setActiveGroupId: (id: string) => void;
   setSelectedCitation: (code: string) => void;
-  sendMessage: (body: string) => Promise<boolean>;
+  sendMessage: (input: MessageInput) => Promise<boolean>;
+  markImageOpened: (messageId: string) => Promise<boolean>;
+  getMessageImageUrl: (message: ChatMessage) => Promise<string | null>;
   toggleMemberStatus: (id: string) => void;
   copyText: (value: string, message: string) => Promise<void>;
+  showNotice: (message: string) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [imageViewOnce, setImageViewOnce] = useState(false);
+  const [revealedImageUrls, setRevealedImageUrls] = useState<Record<string, string>>({});
+  const [sending, setSending] = useState(false);
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
   const visibleMessages = messages.filter((message) => {
     if (message.roomId !== activeGroup.id) return false;
@@ -1532,11 +1676,108 @@ function ChatView({
   });
   const groupMembers = members.filter((member) => member.groupIds.includes(activeGroup.id));
 
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview("");
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(imageFile);
+    setImagePreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [imageFile]);
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const nextFile = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!nextFile) return;
+
+    if (!nextFile.type.startsWith("image/")) {
+      showNotice("Escolhe um ficheiro de imagem.");
+      return;
+    }
+
+    if (nextFile.size > 10 * 1024 * 1024) {
+      showNotice("A imagem deve ter menos de 10 MB.");
+      return;
+    }
+
+    setImageFile(nextFile);
+  }
+
+  function clearImage() {
+    setImageFile(null);
+    setImageViewOnce(false);
+  }
+
+  async function revealImage(message: ChatMessage) {
+    const imageUrl = await getMessageImageUrl(message);
+    if (!imageUrl) {
+      showNotice("Imagem indisponível.");
+      return;
+    }
+
+    const opened = await markImageOpened(message.id);
+    if (!opened) return;
+
+    setRevealedImageUrls((current) => ({ ...current, [message.id]: imageUrl }));
+  }
+
+  function renderMessageImage(message: ChatMessage) {
+    if (!message.imagePath && !message.imageUrl) return null;
+
+    const isOwn = message.authorId === currentMember.id;
+    const openedByMe = message.imageOpenedBy.includes(currentMember.id);
+    const revealedUrl = revealedImageUrls[message.id];
+    const visibleImageUrl = message.imageViewOnce && !isOwn ? revealedUrl : message.imageUrl;
+
+    if (message.imageViewOnce && !isOwn && !revealedUrl) {
+      if (openedByMe) {
+        return (
+          <div className="image-placeholder">
+            <EyeOff size={18} aria-hidden />
+            <span>Imagem já aberta</span>
+          </div>
+        );
+      }
+
+      return (
+        <button className="image-reveal" type="button" onClick={() => revealImage(message)}>
+          <Eye size={18} aria-hidden />
+          <span>Abrir imagem uma vez</span>
+        </button>
+      );
+    }
+
+    if (!visibleImageUrl) {
+      return (
+        <div className="image-placeholder">
+          <ImageIcon size={18} aria-hidden />
+          <span>Imagem indisponível</span>
+        </div>
+      );
+    }
+
+    return (
+      <figure className="message-image">
+        <img src={visibleImageUrl} alt={message.imageName ?? "Imagem enviada"} />
+        {message.imageViewOnce && (
+          <figcaption>
+            <EyeOff size={14} aria-hidden />
+            Ver uma vez
+          </figcaption>
+        )}
+      </figure>
+    );
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const sent = await sendMessage(draft);
+    setSending(true);
+    const sent = await sendMessage({ body: draft, imageFile, imageViewOnce }).finally(() => setSending(false));
     if (sent) {
       setDraft("");
+      clearImage();
     }
   }
 
@@ -1591,6 +1832,7 @@ function ChatView({
                   <span>{formatClock(message.createdAt)}</span>
                 </header>
                 <p>{message.body}</p>
+                {renderMessageImage(message)}
                 {citedDoc && (
                   <div className="message-actions">
                     <button className="citation-chip" type="button" onClick={() => setSelectedCitation(citedDoc.code)}>
@@ -1617,27 +1859,58 @@ function ChatView({
         </div>
 
         <form className="composer" onSubmit={handleSubmit}>
-          <select
-            aria-label="Documento para citar"
-            value={selectedCitation}
-            onChange={(event) => setSelectedCitation(event.target.value)}
-          >
-            <option value="">sem citação</option>
-            {docs.map((doc) => (
-              <option key={doc.id} value={doc.code}>
-                {doc.code}
-              </option>
-            ))}
-          </select>
-          <input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={`Mensagem como ${currentMember.name}`}
-          />
-          <button className="primary-button icon-button" type="submit" title="Enviar">
-            <MessageCircle size={18} aria-hidden />
-            <span>Enviar</span>
-          </button>
+          {imageFile && (
+            <div className="attachment-preview">
+              {imagePreview && <img src={imagePreview} alt="" />}
+              <div>
+                <strong>{imageFile.name}</strong>
+                <span>{formatFileSize(imageFile.size)}</span>
+              </div>
+              <button className="icon-only" type="button" onClick={clearImage} title="Remover imagem">
+                <X size={16} aria-hidden />
+              </button>
+            </div>
+          )}
+
+          <div className="composer-row">
+            <select
+              aria-label="Documento para citar"
+              value={selectedCitation}
+              onChange={(event) => setSelectedCitation(event.target.value)}
+            >
+              <option value="">sem citação</option>
+              {docs.map((doc) => (
+                <option key={doc.id} value={doc.code}>
+                  {doc.code}
+                </option>
+              ))}
+            </select>
+            <input
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={`Mensagem como ${currentMember.name}`}
+            />
+            <label className="secondary-button attachment-picker" title="Adicionar imagem">
+              <ImageIcon size={18} aria-hidden />
+              <span>Imagem</span>
+              <input className="sr-only" type="file" accept="image/*" onChange={handleImageChange} />
+            </label>
+            <button className="primary-button icon-button" type="submit" disabled={sending} title="Enviar">
+              <MessageCircle size={18} aria-hidden />
+              <span>{sending ? "A enviar" : "Enviar"}</span>
+            </button>
+          </div>
+
+          {imageFile && (
+            <button
+              className={`view-once-toggle ${imageViewOnce ? "active" : ""}`}
+              type="button"
+              onClick={() => setImageViewOnce((current) => !current)}
+            >
+              {imageViewOnce ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+              <span>{imageViewOnce ? "Ver uma vez" : "Imagem normal"}</span>
+            </button>
+          )}
         </form>
       </section>
     </section>
@@ -2380,6 +2653,34 @@ function formatClock(value: string) {
 
 function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function safeFileName(name: string) {
+  const cleaned = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+
+  return cleaned || "imagem";
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read image."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function initials(name: string) {
