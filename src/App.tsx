@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   FilePlus2,
+  Flag,
   GitBranch,
   HandHeart,
   HeartHandshake,
@@ -78,6 +79,9 @@ type MemoryTab = "docs" | "acordos" | "leituras" | "rituais";
 type NocturnoTab = "eroteca" | "provocacoes" | "tensao" | "fantasias" | "confessionario" | "video";
 type CareTab = "ciume" | "reparacao" | "saude" | "mediacao";
 type VideoRoomMode = "gallery" | "focus";
+type ReportCategory = "assedio" | "consentimento" | "conteudo" | "seguranca" | "outro";
+type ReportSeverity = "baixa" | "media" | "alta" | "urgente";
+type ReportStatus = "aberto" | "triagem" | "resolvido" | "arquivado";
 
 type Member = {
   id: string;
@@ -95,6 +99,7 @@ type Member = {
   mediaPreference: string;
   relationshipContext: string;
   eventComfort: string;
+  suspendedUntil?: string | null;
 };
 
 type Group = {
@@ -181,6 +186,35 @@ type CommunityState = {
   relationships: RelationshipLink[];
   privacySettings: PrivacySettings;
   messages: ChatMessage[];
+  reports: SafetyReport[];
+  auditLogs: AdminAuditLog[];
+};
+
+type SafetyReport = {
+  id: string;
+  reporterId: string;
+  subjectMemberId: string | null;
+  roomId: string | null;
+  messageId: string | null;
+  category: ReportCategory;
+  severity: ReportSeverity;
+  status: ReportStatus;
+  assigneeId: string | null;
+  summary: string;
+  details: string;
+  internalNotes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AdminAuditLog = {
+  id: string;
+  actorId: string | null;
+  action: string;
+  targetType: string;
+  targetId: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 };
 
 type EncryptedPayload = {
@@ -339,6 +373,7 @@ type ProfileRow = {
   media_preference: string | null;
   relationship_context: string | null;
   event_comfort: string | null;
+  suspended_until: string | null;
 };
 
 type GroupRow = {
@@ -501,6 +536,33 @@ type DeviceKeyRow = {
   revoked_at: string | null;
 };
 
+type ReportRow = {
+  id: string;
+  reporter_id: string;
+  subject_member_id: string | null;
+  room_id: string | null;
+  message_id: string | null;
+  category: ReportCategory;
+  severity: ReportSeverity;
+  status: ReportStatus;
+  assignee_id: string | null;
+  summary: string;
+  details: string | null;
+  internal_notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AuditLogRow = {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
 type P2PSignalType = "offer" | "answer" | "ice" | "close";
 
 type P2PSignalRow = {
@@ -619,6 +681,8 @@ const communityRealtimeTables = [
   "messages",
   "invite_codes",
   "device_keys",
+  "reports",
+  "admin_audit_log",
 ];
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -650,6 +714,43 @@ const demoAvatarUrlsByName: Record<string, string> = {
   "Rita Lopes": "/avatars/rita.svg",
   "Nuno Seabra": "/avatars/nuno.svg",
 };
+
+const reportCategoryLabels: Record<ReportCategory, string> = {
+  assedio: "assédio",
+  consentimento: "consentimento",
+  conteudo: "conteúdo",
+  seguranca: "segurança",
+  outro: "outro",
+};
+
+const reportSeverityLabels: Record<ReportSeverity, string> = {
+  baixa: "baixa",
+  media: "média",
+  alta: "alta",
+  urgente: "urgente",
+};
+
+const reportStatusLabels: Record<ReportStatus, string> = {
+  aberto: "aberto",
+  triagem: "em triagem",
+  resolvido: "resolvido",
+  arquivado: "arquivado",
+};
+
+const reportCategoryOptions = (Object.keys(reportCategoryLabels) as ReportCategory[]).map((value) => ({
+  value,
+  label: reportCategoryLabels[value],
+}));
+
+const reportSeverityOptions = (Object.keys(reportSeverityLabels) as ReportSeverity[]).map((value) => ({
+  value,
+  label: reportSeverityLabels[value],
+}));
+
+const reportStatusOptions = (Object.keys(reportStatusLabels) as ReportStatus[]).map((value) => ({
+  value,
+  label: reportStatusLabels[value],
+}));
 
 type SyncStatus = "local" | "auth" | "loading" | "connected" | "saving" | "error";
 
@@ -1196,6 +1297,35 @@ const seedState: CommunityState = {
     p2pReady: false,
     relayPlan: "Servidor apenas como ponte temporária; media íntima deve migrar para envio direto entre dispositivos.",
   },
+  reports: [
+    {
+      id: "report_demo_1",
+      reporterId: "demo_rita",
+      subjectMemberId: "demo_joao",
+      roomId: "g_geral",
+      messageId: null,
+      category: "consentimento",
+      severity: "media",
+      status: "triagem",
+      assigneeId: "m_di",
+      summary: "Pedido de ajuda para definir limites em mensagens privadas.",
+      details: "A Rita quer apoio para responder sem escalar conflito e prefere que uma admin acompanhe.",
+      internalNotes: "Confirmar com a pessoa ponte antes de contactar o João.",
+      createdAt: "2026-06-18T15:20:00",
+      updatedAt: "2026-06-18T15:45:00",
+    },
+  ],
+  auditLogs: [
+    {
+      id: "audit_demo_1",
+      actorId: "m_di",
+      action: "report.updated",
+      targetType: "report",
+      targetId: "report_demo_1",
+      metadata: { status: "triagem", severity: "media" },
+      createdAt: "2026-06-18T15:45:00",
+    },
+  ],
   messages: [
     {
       id: "msg_1",
@@ -1318,6 +1448,8 @@ function App() {
       messagesResult,
       invitesResult,
       deviceKeysResult,
+      reportsResult,
+      auditLogsResult,
     ] = await Promise.all([
       supabase.from("profiles").select("*").order("joined_at", { ascending: true }),
       supabase.from("groups").select("*").order("name", { ascending: true }),
@@ -1336,6 +1468,8 @@ function App() {
       supabase.from("messages").select("*").order("created_at", { ascending: true }).limit(200),
       supabase.from("invite_codes").select("*").order("created_at", { ascending: false }),
       supabase.from("device_keys").select("*").order("last_seen_at", { ascending: false }),
+      supabase.from("reports").select("*").order("updated_at", { ascending: false }),
+      supabase.from("admin_audit_log").select("*").order("created_at", { ascending: false }).limit(80),
     ]);
 
     const firstError = [
@@ -1356,6 +1490,8 @@ function App() {
       messagesResult.error,
       invitesResult.error,
       deviceKeysResult.error,
+      reportsResult.error,
+      auditLogsResult.error,
     ].find(Boolean);
 
     if (firstError) {
@@ -1402,6 +1538,7 @@ function App() {
           mediaPreference: row.media_preference ?? "",
           relationshipContext: row.relationship_context ?? "",
           eventComfort: row.event_comfort ?? "",
+          suspendedUntil: row.suspended_until,
         };
       }),
     );
@@ -1607,6 +1744,33 @@ function App() {
       createdAt: row.created_at,
     }));
 
+    const reports = ((reportsResult.data ?? []) as ReportRow[]).map((row) => ({
+      id: row.id,
+      reporterId: row.reporter_id,
+      subjectMemberId: row.subject_member_id,
+      roomId: row.room_id,
+      messageId: row.message_id,
+      category: row.category,
+      severity: row.severity,
+      status: row.status,
+      assigneeId: row.assignee_id,
+      summary: row.summary,
+      details: row.details ?? "",
+      internalNotes: row.internal_notes ?? "",
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    const auditLogs = ((auditLogsResult.data ?? []) as AuditLogRow[]).map((row) => ({
+      id: row.id,
+      actorId: row.actor_id,
+      action: row.action,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      metadata: row.metadata ?? {},
+      createdAt: row.created_at,
+    }));
+
     setState({
       members,
       groups,
@@ -1621,6 +1785,8 @@ function App() {
       relationships,
       privacySettings,
       messages,
+      reports,
+      auditLogs,
     });
     setInviteCodes(invites);
     setSyncStatus("connected");
@@ -1678,6 +1844,7 @@ function App() {
       mediaPreference: row.media_preference ?? "",
       relationshipContext: row.relationship_context ?? "",
       eventComfort: row.event_comfort ?? "",
+      suspendedUntil: row.suspended_until,
     };
     setProfile(member);
     setCurrentMemberId(member.id);
@@ -1687,7 +1854,7 @@ function App() {
   const refreshSignedInData = useCallback(async () => {
     if (!session) return;
     const member = await loadProfile(session);
-    if (member) {
+    if (member && !isMemberSuspended(member)) {
       await fetchBackendData();
     }
   }, [fetchBackendData, loadProfile, session]);
@@ -1729,7 +1896,7 @@ function App() {
   }, [refreshSignedInData, session]);
 
   useEffect(() => {
-    if (!supabase || !session || !profile) {
+    if (!supabase || !session || !profile || isMemberSuspended(profile)) {
       setDeviceIdentity(null);
       setDeviceKeys([]);
       setDeviceSecurityStatus("off");
@@ -2333,7 +2500,7 @@ function App() {
 
     if (usingBackend && supabase && profile?.role === "admin") {
       setSyncStatus("saving");
-      const { error } = await supabase.from("profiles").update({ role }).eq("id", memberId);
+      const { error } = await supabase.rpc("admin_update_member_role", { _member_id: memberId, _role: role });
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
@@ -2347,6 +2514,10 @@ function App() {
     updateState((current) => ({
       ...current,
       members: current.members.map((member) => (member.id === memberId ? { ...member, role } : member)),
+      auditLogs: [
+        makeLocalAudit(currentMember.id, "member.role_updated", "profile", memberId, { role }),
+        ...current.auditLogs,
+      ],
     }));
     showNotice("Papel atualizado.");
   }
@@ -2756,7 +2927,10 @@ function App() {
       if (message.imagePath) {
         await supabase.storage.from("message-images").remove([message.imagePath]);
       }
-      const { error } = await supabase.from("messages").delete().eq("id", messageId);
+      const { error } =
+        currentMember.role === "admin"
+          ? await supabase.rpc("admin_delete_message", { _message_id: messageId })
+          : await supabase.from("messages").delete().eq("id", messageId);
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
@@ -2770,6 +2944,16 @@ function App() {
     updateState((current) => ({
       ...current,
       messages: current.messages.filter((candidate) => candidate.id !== messageId),
+      auditLogs:
+        currentMember.role === "admin"
+          ? [
+              makeLocalAudit(currentMember.id, "message.deleted", "message", messageId, {
+                roomId: message.roomId,
+                authorId: message.authorId,
+              }),
+              ...current.auditLogs,
+            ]
+          : current.auditLogs,
     }));
     showNotice("Mensagem eliminada.");
   }
@@ -2867,7 +3051,10 @@ function App() {
 
     if (usingBackend && supabase && profile) {
       setSyncStatus("saving");
-      const { error } = await supabase.from("events").delete().eq("id", eventId);
+      const { error } =
+        currentMember.role === "admin"
+          ? await supabase.rpc("admin_delete_event", { _event_id: eventId })
+          : await supabase.from("events").delete().eq("id", eventId);
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
@@ -2883,6 +3070,10 @@ function App() {
       events: current.events.filter((candidate) => candidate.id !== eventId),
       eventRooms: current.eventRooms.filter((candidate) => candidate.eventId !== eventId),
       eventCheckIns: current.eventCheckIns.filter((candidate) => candidate.eventId !== eventId),
+      auditLogs:
+        currentMember.role === "admin"
+          ? [makeLocalAudit(currentMember.id, "event.deleted", "event", eventId, { title: event.title }), ...current.auditLogs]
+          : current.auditLogs,
     }));
     showNotice("Evento eliminado.");
   }
@@ -2982,7 +3173,10 @@ function App() {
 
     if (usingBackend && supabase && profile) {
       setSyncStatus("saving");
-      const { error } = await supabase.from("docs").delete().eq("id", docId);
+      const { error } =
+        currentMember.role === "admin"
+          ? await supabase.rpc("admin_delete_doc", { _doc_id: docId })
+          : await supabase.from("docs").delete().eq("id", docId);
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
@@ -3002,6 +3196,10 @@ function App() {
       messages: current.messages.map((message) =>
         message.citationCode === doc.code ? { ...message, citationCode: undefined } : message,
       ),
+      auditLogs:
+        currentMember.role === "admin"
+          ? [makeLocalAudit(currentMember.id, "doc.deleted", "doc", docId, { code: doc.code, title: doc.title }), ...current.auditLogs]
+          : current.auditLogs,
     }));
     if (selectedCitation === doc.code) {
       setSelectedCitation("");
@@ -3099,7 +3297,10 @@ function App() {
 
     if (usingBackend && supabase) {
       setSyncStatus("saving");
-      const { error } = await supabase.from("decisions").delete().eq("id", decisionId);
+      const { error } =
+        currentMember.role === "admin"
+          ? await supabase.rpc("admin_delete_decision", { _decision_id: decisionId })
+          : await supabase.from("decisions").delete().eq("id", decisionId);
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
@@ -3116,6 +3317,16 @@ function App() {
       messages: current.messages.map((message) =>
         message.citationCode === decision.code ? { ...message, citationCode: undefined } : message,
       ),
+      auditLogs:
+        currentMember.role === "admin"
+          ? [
+              makeLocalAudit(currentMember.id, "decision.deleted", "decision", decisionId, {
+                code: decision.code,
+                title: decision.title,
+              }),
+              ...current.auditLogs,
+            ]
+          : current.auditLogs,
     }));
     showNotice(`${decision.code} eliminada.`);
   }
@@ -3173,6 +3384,151 @@ function App() {
     }));
     showNotice("Cartão de consentimento atualizado.");
     return true;
+  }
+
+  async function submitReport(input: {
+    subjectMemberId?: string | null;
+    roomId?: string | null;
+    messageId?: string | null;
+    category: ReportCategory;
+    severity: ReportSeverity;
+    summary: string;
+    details: string;
+  }) {
+    const summary = input.summary.trim();
+    const details = input.details.trim();
+    if (!summary) {
+      showNotice("Escreve um resumo curto para o pedido.");
+      return false;
+    }
+
+    const report: SafetyReport = {
+      id: crypto.randomUUID(),
+      reporterId: currentMember.id,
+      subjectMemberId: input.subjectMemberId ?? null,
+      roomId: input.roomId ?? null,
+      messageId: input.messageId ?? null,
+      category: input.category,
+      severity: input.severity,
+      status: "aberto",
+      assigneeId: null,
+      summary,
+      details,
+      internalNotes: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("reports").insert({
+        id: report.id,
+        reporter_id: profile.id,
+        subject_member_id: report.subjectMemberId,
+        room_id: report.roomId,
+        message_id: report.messageId,
+        category: report.category,
+        severity: report.severity,
+        summary: report.summary,
+        details: report.details,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Pedido enviado aos admins.");
+      return true;
+    }
+
+    updateState((current) => ({ ...current, reports: [report, ...current.reports] }));
+    showNotice("Pedido enviado aos admins.");
+    return true;
+  }
+
+  async function updateReport(reportId: string, patch: Partial<Pick<SafetyReport, "status" | "severity" | "assigneeId" | "internalNotes">>) {
+    if (currentMember.role !== "admin") {
+      showNotice("Só admins podem actualizar casos.");
+      return;
+    }
+
+    if (usingBackend && supabase && profile?.role === "admin") {
+      setSyncStatus("saving");
+      const { error } = await supabase.rpc("admin_update_report", {
+        _report_id: reportId,
+        _status: patch.status ?? null,
+        _severity: patch.severity ?? null,
+        _assignee_id: patch.assigneeId ?? null,
+        _internal_notes: patch.internalNotes ?? null,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Caso atualizado.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      reports: current.reports.map((report) =>
+        report.id === reportId ? { ...report, ...patch, updatedAt: new Date().toISOString() } : report,
+      ),
+      auditLogs: [
+        makeLocalAudit(currentMember.id, "report.updated", "report", reportId, patch),
+        ...current.auditLogs,
+      ],
+    }));
+    showNotice("Caso atualizado.");
+  }
+
+  async function setMemberSuspension(memberId: string, suspendedUntil: string | null) {
+    if (currentMember.role !== "admin") {
+      showNotice("Só admins podem suspender contas.");
+      return;
+    }
+
+    if (memberId === currentMember.id) {
+      showNotice("Não suspendas a tua própria conta.");
+      return;
+    }
+
+    if (usingBackend && supabase && profile?.role === "admin") {
+      setSyncStatus("saving");
+      const { error } = await supabase.rpc("set_member_suspension", {
+        _member_id: memberId,
+        _suspended_until: suspendedUntil,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice(suspendedUntil ? "Conta suspensa temporariamente." : "Suspensão removida.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      members: current.members.map((member) =>
+        member.id === memberId ? { ...member, suspendedUntil } : member,
+      ),
+      auditLogs: [
+        makeLocalAudit(
+          currentMember.id,
+          suspendedUntil ? "member.suspended" : "member.suspension_cleared",
+          "profile",
+          memberId,
+          { until: suspendedUntil },
+        ),
+        ...current.auditLogs,
+      ],
+    }));
+    showNotice(suspendedUntil ? "Conta suspensa temporariamente." : "Suspensão removida.");
   }
 
   async function addEventCheckIn(input: {
@@ -3482,7 +3838,10 @@ function App() {
 
     if (usingBackend && supabase) {
       setSyncStatus("saving");
-      const { error } = await supabase.from("event_rooms").delete().eq("id", roomId);
+      const { error } =
+        currentMember.role === "admin"
+          ? await supabase.rpc("admin_delete_event_room", { _room_id: roomId })
+          : await supabase.from("event_rooms").delete().eq("id", roomId);
       if (error) {
         setSyncStatus("error");
         setSyncMessage(error.message);
@@ -3496,6 +3855,16 @@ function App() {
     updateState((current) => ({
       ...current,
       eventRooms: current.eventRooms.filter((candidate) => candidate.id !== roomId),
+      auditLogs:
+        currentMember.role === "admin"
+          ? [
+              makeLocalAudit(currentMember.id, "event_room.deleted", "event_room", roomId, {
+                eventId: room.eventId,
+                name: room.name,
+              }),
+              ...current.auditLogs,
+            ]
+          : current.auditLogs,
     }));
     showNotice("Sala temporária eliminada.");
   }
@@ -3638,11 +4007,10 @@ function App() {
     if (!supabase || !profile) return false;
     const code = (input.code.trim() || makeInviteCode()).toUpperCase();
     setSyncStatus("saving");
-    const { error } = await supabase.from("invite_codes").insert({
-      code,
-      sponsor_id: profile.id,
-      role: input.role,
-      max_uses: input.maxUses,
+    const { error } = await supabase.rpc("issue_invite", {
+      _code: code,
+      _role: input.role,
+      _max_uses: input.maxUses,
     });
     if (error) {
       setSyncStatus("error");
@@ -3707,6 +4075,10 @@ function App() {
         onSignOut={handleSignOut}
       />
     );
+  }
+
+  if (usingBackend && profile && isMemberSuspended(profile)) {
+    return <SuspendedScreen member={profile} onSignOut={handleSignOut} />;
   }
 
   return (
@@ -3834,6 +4206,7 @@ function App() {
             deviceKeys={deviceKeys}
             directPeerCount={directPeerCount}
             confirmTrustDevice={confirmTrustDevice}
+            submitReport={submitReport}
             toggleMemberStatus={toggleMemberStatus}
             addGroup={addGroup}
             copyText={copyText}
@@ -3934,6 +4307,8 @@ function App() {
             memberById={memberById}
             events={upcomingEvents}
             eventCheckIns={state.eventCheckIns}
+            reports={state.reports}
+            submitReport={submitReport}
             showNotice={showNotice}
           />
         )}
@@ -3948,6 +4323,8 @@ function App() {
             docs={state.docs}
             decisions={state.decisions}
             messages={state.messages}
+            reports={state.reports}
+            auditLogs={state.auditLogs}
             inviteCodes={inviteCodes}
             introductions={state.introductions}
             privacySettings={state.privacySettings}
@@ -3962,6 +4339,8 @@ function App() {
             deleteEventRoom={deleteEventRoom}
             deleteDoc={deleteDoc}
             deleteDecision={deleteDecision}
+            updateReport={updateReport}
+            setMemberSuspension={setMemberSuspension}
             setActiveNav={setActiveNav}
           />
         )}
@@ -3979,6 +4358,27 @@ function LoadingScreen({ label }: { label: string }) {
         </div>
         <h1>{label}</h1>
         <p>A preparar a ligação segura à comunidade.</p>
+      </section>
+    </main>
+  );
+}
+
+function SuspendedScreen({ member, onSignOut }: { member: Member; onSignOut: () => Promise<void> }) {
+  return (
+    <main className="auth-screen">
+      <section className="auth-panel surface">
+        <div className="brand-mark">
+          <ShieldCheck size={22} aria-hidden />
+        </div>
+        <h2>Conta suspensa temporariamente</h2>
+        <p>
+          {member.name}, o acesso à comunidade está pausado
+          {member.suspendedUntil ? ` até ${formatClock(member.suspendedUntil)}` : ""}. Se precisares de contexto,
+          fala com uma pessoa admin fora da app.
+        </p>
+        <button className="primary-button" type="button" onClick={() => void onSignOut()}>
+          Sair
+        </button>
       </section>
     </main>
   );
@@ -4267,6 +4667,7 @@ function ChatView({
   deviceKeys,
   directPeerCount,
   confirmTrustDevice,
+  submitReport,
   toggleMemberStatus,
   addGroup,
   copyText,
@@ -4291,6 +4692,15 @@ function ChatView({
   deviceKeys: DeviceKey[];
   directPeerCount: number;
   confirmTrustDevice: (deviceId: string) => Promise<void>;
+  submitReport: (input: {
+    subjectMemberId?: string | null;
+    roomId?: string | null;
+    messageId?: string | null;
+    category: ReportCategory;
+    severity: ReportSeverity;
+    summary: string;
+    details: string;
+  }) => Promise<boolean>;
   toggleMemberStatus: (id: string) => void;
   addGroup: (input: { name: string; focus: string; privacy: GroupPrivacy; stewardId: string }) => Promise<boolean>;
   copyText: (value: string, message: string) => Promise<void>;
@@ -4718,6 +5128,27 @@ function ChatView({
                   )}
                   <div className="message-meta">
                     <span>{formatClock(message.createdAt)}</span>
+                    {!isOwnMessage && (
+                      <button
+                        className="text-button report-message-button"
+                        type="button"
+                        onClick={() =>
+                          submitReport({
+                            subjectMemberId: message.authorId,
+                            roomId: message.roomId,
+                            messageId: message.id,
+                            category: message.imagePath || message.imageUrl ? "conteudo" : "consentimento",
+                            severity: message.imageConsentRequired || message.imageViewOnce ? "alta" : "media",
+                            summary: `Ajuda com mensagem de ${author?.name ?? "pessoa"}`,
+                            details: "Quero que uma pessoa admin veja o contexto desta mensagem.",
+                          })
+                        }
+                        title="Pedir ajuda sobre esta mensagem"
+                      >
+                        <Flag size={12} aria-hidden />
+                        Ajuda
+                      </button>
+                    )}
                     {isOwnMessage && (
                       <span className="delivery-check">
                         <Check size={12} aria-hidden />
@@ -6543,6 +6974,8 @@ function CareHub({
   memberById,
   events,
   eventCheckIns,
+  reports,
+  submitReport,
   showNotice,
 }: {
   members: Member[];
@@ -6550,17 +6983,49 @@ function CareHub({
   memberById: Map<string, Member>;
   events: EventItem[];
   eventCheckIns: EventCheckIn[];
+  reports: SafetyReport[];
+  submitReport: (input: {
+    subjectMemberId?: string | null;
+    roomId?: string | null;
+    messageId?: string | null;
+    category: ReportCategory;
+    severity: ReportSeverity;
+    summary: string;
+    details: string;
+  }) => Promise<boolean>;
   showNotice: (message: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<CareTab>("ciume");
   const otherMembers = members.filter((member) => member.id !== currentMember.id);
   const [jealousyForm, setJealousyForm] = useState({ happened: "", story: "", need: "reasseguramento", shareWith: "" });
   const [repairForm, setRepairForm] = useState({ personId: otherMembers[0]?.id ?? "", impact: "", request: "", mediatorId: "" });
+  const [reportForm, setReportForm] = useState({
+    subjectMemberId: "",
+    category: "consentimento" as ReportCategory,
+    severity: "media" as ReportSeverity,
+    summary: "",
+    details: "",
+  });
   const sensitiveCheckIns = eventCheckIns.filter((checkIn) => checkIn.mood === "atenção" || checkIn.visibility !== "comunidade");
+  const myReports = reports.filter((report) => report.reporterId === currentMember.id);
 
   function submitCare(event: FormEvent<HTMLFormElement>, message: string) {
     event.preventDefault();
     showNotice(message);
+  }
+
+  async function handleReportSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const created = await submitReport({
+      subjectMemberId: reportForm.subjectMemberId || null,
+      category: reportForm.category,
+      severity: reportForm.severity,
+      summary: reportForm.summary,
+      details: reportForm.details,
+    });
+    if (created) {
+      setReportForm((current) => ({ ...current, summary: "", details: "" }));
+    }
   }
 
   return (
@@ -6667,18 +7132,103 @@ function CareHub({
       )}
 
       {activeTab === "mediacao" && (
-        <section className="memory-grid">
-          {[
-            ["Pedir ajuda", "criar pedido privado para admins/mediadores"],
-            ["Definir severidade", "baixo, médio, urgente"],
-            ["Atribuir pessoa", "responsável interno com notas privadas"],
-            ["Fechar com cuidado", "resultado, reparação e próximos passos"],
-          ].map(([title, text]) => (
-            <article className="surface soft-card" key={title}>
-              <header><HandHeart size={18} aria-hidden /><strong>{title}</strong></header>
-              <p>{text}</p>
-            </article>
-          ))}
+        <section className="split-layout">
+          <form className="surface form-panel care-panel" onSubmit={handleReportSubmit}>
+            <SurfaceHeader icon={<Flag />} title="Pedir ajuda" />
+            <p className="form-note">
+              Este pedido fica visível para admins. Se houver risco imediato, procura ajuda fora da app.
+            </p>
+            <div className="field-pair">
+              <div className="field-group">
+                <label htmlFor="report-subject">Pessoa ligada ao pedido</label>
+                <select
+                  id="report-subject"
+                  value={reportForm.subjectMemberId}
+                  onChange={(event) => setReportForm({ ...reportForm, subjectMemberId: event.target.value })}
+                >
+                  <option value="">sem pessoa específica</option>
+                  {otherMembers.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-group">
+                <label htmlFor="report-category">Categoria</label>
+                <select
+                  id="report-category"
+                  value={reportForm.category}
+                  onChange={(event) => setReportForm({ ...reportForm, category: event.target.value as ReportCategory })}
+                >
+                  {reportCategoryOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="field-group">
+              <label htmlFor="report-severity">Severidade</label>
+              <select
+                id="report-severity"
+                value={reportForm.severity}
+                onChange={(event) => setReportForm({ ...reportForm, severity: event.target.value as ReportSeverity })}
+              >
+                {reportSeverityOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="report-summary">Resumo</label>
+              <input
+                id="report-summary"
+                value={reportForm.summary}
+                onChange={(event) => setReportForm({ ...reportForm, summary: event.target.value })}
+              />
+            </div>
+            <div className="field-group">
+              <label htmlFor="report-details">Contexto</label>
+              <textarea
+                id="report-details"
+                rows={4}
+                value={reportForm.details}
+                onChange={(event) => setReportForm({ ...reportForm, details: event.target.value })}
+              />
+            </div>
+            <button className="primary-button" type="submit">
+              <Flag size={17} aria-hidden />
+              Enviar pedido
+            </button>
+          </form>
+
+          <section className="surface">
+            <SurfaceHeader icon={<ClipboardCheck />} title="Os meus pedidos" />
+            <div className="ritual-list">
+              {myReports.length === 0 ? (
+                <p className="empty-note">Ainda não há pedidos.</p>
+              ) : (
+                myReports.map((report) => (
+                  <article className="soft-card report-mini-card" key={report.id}>
+                    <header>
+                      <strong>{report.summary}</strong>
+                      <span className={`small-pill ${report.severity === "urgente" ? "danger-pill" : ""}`}>
+                        {reportStatusLabels[report.status]}
+                      </span>
+                    </header>
+                    <p>{report.details || "sem detalhe"}</p>
+                    <small>
+                      {reportCategoryLabels[report.category]} · {reportSeverityLabels[report.severity]}
+                    </small>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
         </section>
       )}
     </section>
@@ -8446,6 +8996,8 @@ function AdminView({
   docs,
   decisions,
   messages,
+  reports,
+  auditLogs,
   inviteCodes,
   introductions,
   privacySettings,
@@ -8460,6 +9012,8 @@ function AdminView({
   deleteEventRoom,
   deleteDoc,
   deleteDecision,
+  updateReport,
+  setMemberSuspension,
   setActiveNav,
 }: {
   members: Member[];
@@ -8470,6 +9024,8 @@ function AdminView({
   docs: CommunityDoc[];
   decisions: DecisionRecord[];
   messages: ChatMessage[];
+  reports: SafetyReport[];
+  auditLogs: AdminAuditLog[];
   inviteCodes: InviteCode[];
   introductions: WarmIntroduction[];
   privacySettings: PrivacySettings;
@@ -8484,6 +9040,11 @@ function AdminView({
   deleteEventRoom: (roomId: string) => Promise<void>;
   deleteDoc: (docId: string) => Promise<void>;
   deleteDecision: (decisionId: string) => Promise<void>;
+  updateReport: (
+    reportId: string,
+    patch: Partial<Pick<SafetyReport, "status" | "severity" | "assigneeId" | "internalNotes">>,
+  ) => Promise<void>;
+  setMemberSuspension: (memberId: string, suspendedUntil: string | null) => Promise<void>;
   setActiveNav: (nav: NavKey) => void;
 }) {
   const now = Date.now();
@@ -8506,7 +9067,18 @@ function AdminView({
   const activeRooms = eventRooms.filter((room) => new Date(room.expiresAt).getTime() >= now);
   const fullEvents = events.filter((event) => event.attendeeIds.length >= event.capacity);
   const usedInvites = inviteCodes.filter((invite) => invite.uses >= invite.maxUses);
+  const openReports = reports.filter((report) => report.status !== "resolvido" && report.status !== "arquivado");
+  const urgentReports = openReports.filter((report) => report.severity === "urgente" || report.severity === "alta");
+  const suspendedMembers = members.filter(isMemberSuspended);
   const riskQueue = [
+    ...urgentReports.map((report) => ({
+      id: `report-${report.id}`,
+      tone: "danger",
+      title: `${reportSeverityLabels[report.severity]}: ${report.summary}`,
+      detail: `${memberById.get(report.reporterId)?.name ?? "Pessoa"} · ${reportCategoryLabels[report.category]}`,
+      action: "Triagem",
+      onAction: () => updateReport(report.id, { status: "triagem", assigneeId: currentMember.id }),
+    })),
     ...newMembers.map((member) => ({
       id: `member-${member.id}`,
       tone: "warm",
@@ -8581,7 +9153,7 @@ function AdminView({
       <div className="metric-row admin-metrics">
         <Metric icon={<Users />} label="Membros" value={members.length} accent="#176b63" />
         <Metric icon={<HandHeart />} label="Novas entradas" value={newMembers.length} accent="#9a5a20" />
-        <Metric icon={<HeartHandshake />} label="Pedidos intro" value={pendingIntroductions.length} accent="#5457a6" />
+        <Metric icon={<HeartHandshake />} label="Casos abertos" value={openReports.length} accent="#5457a6" />
         <Metric icon={<ShieldCheck />} label="Itens atenção" value={riskQueue.length} accent="#c4493d" />
       </div>
 
@@ -8615,8 +9187,12 @@ function AdminView({
               <span>salas temporárias activas</span>
             </article>
             <article>
+              <strong>{suspendedMembers.length}</strong>
+              <span>contas suspensas</span>
+            </article>
+            <article>
               <strong>{sensitiveMessages.length}</strong>
-              <span>mensagens com media sensível</span>
+              <span>media sensível</span>
             </article>
             <article>
               <strong>{fullEvents.length}</strong>
@@ -8638,6 +9214,104 @@ function AdminView({
 
       <section className="admin-grid wide-left">
         <section className="surface admin-panel">
+          <SurfaceHeader icon={<Flag />} title="Casos de segurança" />
+          <div className="admin-content-list">
+            {openReports.length === 0 ? (
+              <p className="empty-note">Sem casos abertos.</p>
+            ) : (
+              openReports.map((report) => (
+                <article className={`admin-content-row report-admin-row ${report.severity}`} key={report.id}>
+                  <div>
+                    <strong>{report.summary}</strong>
+                    <span>
+                      {memberById.get(report.reporterId)?.name ?? "Pessoa"} ·{" "}
+                      {report.subjectMemberId ? `sobre ${memberById.get(report.subjectMemberId)?.name ?? "pessoa"}` : "sem pessoa específica"}
+                    </span>
+                    <p>{report.details || "sem detalhe"}</p>
+                    <div className="admin-tags">
+                      <span>{reportCategoryLabels[report.category]}</span>
+                      <span>{reportSeverityLabels[report.severity]}</span>
+                      <span>{reportStatusLabels[report.status]}</span>
+                      {report.roomId && <span>{groupById.get(report.roomId)?.name ?? "sala"}</span>}
+                    </div>
+                    <textarea
+                      className="admin-notes-input"
+                      defaultValue={report.internalNotes}
+                      rows={2}
+                      placeholder="Notas internas"
+                      onBlur={(event) => updateReport(report.id, { internalNotes: event.target.value })}
+                    />
+                  </div>
+                  <div className="admin-case-actions">
+                    <select
+                      value={report.status}
+                      aria-label="Estado do caso"
+                      onChange={(event) => updateReport(report.id, { status: event.target.value as ReportStatus })}
+                    >
+                      {reportStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={report.severity}
+                      aria-label="Severidade do caso"
+                      onChange={(event) => updateReport(report.id, { severity: event.target.value as ReportSeverity })}
+                    >
+                      {reportSeverityOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => updateReport(report.id, { status: "triagem", assigneeId: currentMember.id })}
+                    >
+                      Assumir
+                    </button>
+                    <button
+                      className="secondary-button selected"
+                      type="button"
+                      onClick={() => updateReport(report.id, { status: "resolvido" })}
+                    >
+                      Resolver
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="surface admin-panel">
+          <SurfaceHeader icon={<ClipboardCheck />} title="Auditoria" />
+          <div className="admin-content-list">
+            {auditLogs.length === 0 ? (
+              <p className="empty-note">Sem registos ainda.</p>
+            ) : (
+              auditLogs.slice(0, 10).map((entry) => (
+                <article className="admin-content-row audit-row" key={entry.id}>
+                  <div>
+                    <strong>{formatAuditAction(entry.action)}</strong>
+                    <span>
+                      {memberById.get(entry.actorId ?? "")?.name ?? "Sistema"} · {formatClock(entry.createdAt)}
+                    </span>
+                    <p>
+                      {entry.targetType} · {entry.targetId}
+                    </p>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      </section>
+
+      <section className="admin-grid wide-left">
+        <section className="surface admin-panel">
           <SurfaceHeader icon={<Users />} title="Membros e papéis" />
           <div className="admin-member-list">
             {members.map((member) => {
@@ -8653,6 +9327,7 @@ function AdminView({
                     <div className="admin-tags">
                       <span>{member.status}</span>
                       <span>{member.role}</span>
+                      {isMemberSuspended(member) && <span>suspensa até {formatClock(member.suspendedUntil ?? "")}</span>}
                       {!member.consentLimits && <span>limites por preencher</span>}
                     </div>
                   </div>
@@ -8667,6 +9342,21 @@ function AdminView({
                   </select>
                   <button className="secondary-button" type="button" onClick={() => toggleMemberStatus(member.id)}>
                     {member.status === "online" ? "Pôr offline" : "Pôr online"}
+                  </button>
+                  <button
+                    className={isMemberSuspended(member) ? "secondary-button selected" : "secondary-button"}
+                    type="button"
+                    disabled={member.id === currentMember.id}
+                    onClick={() =>
+                      setMemberSuspension(
+                        member.id,
+                        isMemberSuspended(member)
+                          ? null
+                          : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                      )
+                    }
+                  >
+                    {isMemberSuspended(member) ? "Repor" : "Suspender 24h"}
                   </button>
                 </article>
               );
@@ -9161,6 +9851,7 @@ function normalizeCommunityState(state: CommunityState): CommunityState {
       mediaPreference: member.mediaPreference ?? "",
       relationshipContext: member.relationshipContext ?? "",
       eventComfort: member.eventComfort ?? "",
+      suspendedUntil: member.suspendedUntil ?? null,
     })),
     events: state.events.map((event) => ({
       ...event,
@@ -9177,6 +9868,8 @@ function normalizeCommunityState(state: CommunityState): CommunityState {
     interests: Array.isArray(state.interests) ? state.interests : [],
     relationships: Array.isArray(state.relationships) ? state.relationships : [],
     privacySettings: state.privacySettings ?? seedState.privacySettings,
+    reports: Array.isArray(state.reports) ? state.reports : [],
+    auditLogs: Array.isArray(state.auditLogs) ? state.auditLogs : [],
     messages: state.messages.map((message) => ({
       ...message,
       encryptionVersion: message.encryptionVersion ?? 0,
@@ -9339,6 +10032,44 @@ function formatExpiry(value: string) {
     day: "2-digit",
     month: "short",
   }).format(new Date(value));
+}
+
+function isMemberSuspended(member: Member) {
+  return Boolean(member.suspendedUntil && new Date(member.suspendedUntil).getTime() > Date.now());
+}
+
+function makeLocalAudit(
+  actorId: string | null,
+  action: string,
+  targetType: string,
+  targetId: string,
+  metadata: Record<string, unknown> = {},
+): AdminAuditLog {
+  return {
+    id: crypto.randomUUID(),
+    actorId,
+    action,
+    targetType,
+    targetId,
+    metadata,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function formatAuditAction(action: string) {
+  const labels: Record<string, string> = {
+    "member.role_updated": "Papel alterado",
+    "message.deleted": "Mensagem eliminada",
+    "event.deleted": "Evento eliminado",
+    "event_room.deleted": "Sala temporária eliminada",
+    "doc.deleted": "Doc eliminado",
+    "decision.deleted": "Decisão eliminada",
+    "invite.created": "Convite criado",
+    "report.updated": "Caso atualizado",
+    "member.suspended": "Conta suspensa",
+    "member.suspension_cleared": "Suspensão removida",
+  };
+  return labels[action] ?? action;
 }
 
 function escapeRegExp(value: string) {
