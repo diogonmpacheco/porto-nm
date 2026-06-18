@@ -33,7 +33,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
-import { createClient, Session } from "@supabase/supabase-js";
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type MemberStatus = "online" | "offline";
@@ -50,6 +50,8 @@ type IntentionKind = "amizades" | "dates" | "flirt" | "eventos" | "indisponível
 type InterestKind = "amizade" | "date" | "flirt" | "evento";
 type IntroductionStatus = "pedido" | "aceite" | "recusado" | "aberto";
 type RelationshipVisibility = "privado" | "conexões" | "comunidade";
+type EncryptionStatus = "plain" | "encrypted" | "locked";
+type DeviceSecurityStatus = "off" | "creating" | "ready" | "error";
 
 type Member = {
   id: string;
@@ -119,6 +121,11 @@ type ChatMessage = {
   createdAt: string;
   recipientsAtSend: string[];
   citationCode?: string;
+  encryptionVersion: number;
+  encryptedPayloads?: Record<string, EncryptedPayload>;
+  senderDeviceId?: string | null;
+  encryptionStatus: EncryptionStatus;
+  encryptedDeviceCount: number;
   imagePath?: string;
   imageUrl?: string;
   imageName?: string;
@@ -143,6 +150,40 @@ type CommunityState = {
   relationships: RelationshipLink[];
   privacySettings: PrivacySettings;
   messages: ChatMessage[];
+};
+
+type EncryptedPayload = {
+  version: 1;
+  iv: string;
+  ciphertext: string;
+};
+
+type EncryptedMessageBody = {
+  body: string;
+  citationCode: string | null;
+};
+
+type DeviceKey = {
+  id: string;
+  memberId: string;
+  deviceLabel: string;
+  publicKey: JsonWebKey;
+  createdAt: string;
+  lastSeenAt: string;
+  revokedAt: string | null;
+};
+
+type StoredDeviceIdentity = {
+  deviceId: string;
+  memberId: string;
+  publicJwk: JsonWebKey;
+  privateJwk: JsonWebKey;
+  createdAt: string;
+};
+
+type DeviceIdentity = StoredDeviceIdentity & {
+  publicKey: CryptoKey;
+  privateKey: CryptoKey;
 };
 
 type MemberIntention = {
@@ -318,6 +359,9 @@ type MessageRow = {
   created_at: string;
   recipients_at_send: string[] | null;
   citation_code: string | null;
+  encryption_version: number | null;
+  encrypted_payloads: Record<string, EncryptedPayload> | null;
+  sender_device_id: string | null;
   image_path: string | null;
   image_name: string | null;
   image_mime_type: string | null;
@@ -402,7 +446,18 @@ type InviteRow = {
   created_at: string;
 };
 
+type DeviceKeyRow = {
+  id: string;
+  member_id: string;
+  device_label: string | null;
+  public_key: JsonWebKey;
+  created_at: string;
+  last_seen_at: string;
+  revoked_at: string | null;
+};
+
 const storeKey = "porto-nm-community-v1";
+const deviceStorePrefix = "porto_nm_device_identity";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const supabase =
@@ -962,6 +1017,9 @@ const seedState: CommunityState = {
       createdAt: "2026-06-18T09:36:00",
       recipientsAtSend: ["m_ana", "m_lia"],
       citationCode: "DOC-001",
+      encryptionVersion: 0,
+      encryptionStatus: "plain",
+      encryptedDeviceCount: 0,
       imageViewOnce: false,
       imageOpenedBy: [],
       imageConsentRequired: false,
@@ -975,6 +1033,9 @@ const seedState: CommunityState = {
       createdAt: "2026-06-18T13:00:00",
       recipientsAtSend: ["m_di", "m_ana", "m_lia", "demo_joao", "demo_carolina", "demo_rita", "demo_nuno"],
       citationCode: "DOC-DEMO-01",
+      encryptionVersion: 0,
+      encryptionStatus: "plain",
+      encryptedDeviceCount: 0,
       imageViewOnce: false,
       imageOpenedBy: [],
       imageConsentRequired: false,
@@ -986,6 +1047,9 @@ const seedState: CommunityState = {
       body: "A sala temporária da caminhada já está aberta para combinar chegada e pares opcionais.",
       createdAt: "2026-06-18T13:05:00",
       recipientsAtSend: ["m_di", "m_ana", "demo_ines", "demo_carolina", "demo_nuno"],
+      encryptionVersion: 0,
+      encryptionStatus: "plain",
+      encryptedDeviceCount: 0,
       imageViewOnce: false,
       imageOpenedBy: [],
       imageConsentRequired: false,
@@ -998,6 +1062,9 @@ const seedState: CommunityState = {
       createdAt: "2026-06-18T13:12:00",
       recipientsAtSend: ["m_di", "m_ana", "m_lia", "demo_ines", "demo_joao", "demo_rita", "demo_nuno"],
       citationCode: "DOC-DEMO-02",
+      encryptionVersion: 0,
+      encryptionStatus: "plain",
+      encryptedDeviceCount: 0,
       imageViewOnce: false,
       imageOpenedBy: [],
       imageConsentRequired: false,
@@ -1021,6 +1088,9 @@ function App() {
   const [selectedCitation, setSelectedCitation] = useState("");
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
+  const [deviceIdentity, setDeviceIdentity] = useState<DeviceIdentity | null>(null);
+  const [deviceKeys, setDeviceKeys] = useState<DeviceKey[]>([]);
+  const [deviceSecurityStatus, setDeviceSecurityStatus] = useState<DeviceSecurityStatus>("off");
 
   const fetchBackendData = useCallback(async () => {
     if (!supabase || !session) return;
@@ -1043,6 +1113,7 @@ function App() {
       privacyResult,
       messagesResult,
       invitesResult,
+      deviceKeysResult,
     ] = await Promise.all([
       supabase.from("profiles").select("*").order("joined_at", { ascending: true }),
       supabase.from("groups").select("*").order("name", { ascending: true }),
@@ -1060,6 +1131,7 @@ function App() {
       supabase.from("privacy_settings").select("*").eq("id", "main").maybeSingle(),
       supabase.from("messages").select("*").order("created_at", { ascending: true }).limit(200),
       supabase.from("invite_codes").select("*").order("created_at", { ascending: false }),
+      supabase.from("device_keys").select("*").order("last_seen_at", { ascending: false }),
     ]);
 
     const firstError = [
@@ -1079,6 +1151,7 @@ function App() {
       privacyResult.error,
       messagesResult.error,
       invitesResult.error,
+      deviceKeysResult.error,
     ].find(Boolean);
 
     if (firstError) {
@@ -1226,12 +1299,41 @@ function App() {
       relayPlan: privacyRow?.relay_plan ?? seedState.privacySettings.relayPlan,
     };
 
+    const nextDeviceKeys = ((deviceKeysResult.data ?? []) as DeviceKeyRow[]).map(deviceKeyFromRow);
+    setDeviceKeys(nextDeviceKeys);
+
     const messages = await Promise.all(
       ((messagesResult.data ?? []) as MessageRow[]).map(async (row) => {
         const imageOpenedBy = row.image_opened_by ?? [];
         const imageViewOnce = Boolean(row.image_view_once);
         const isAuthor = row.author_id === session.user.id;
+        const encryptionVersion = row.encryption_version ?? 0;
+        const encryptedPayloads = row.encrypted_payloads ?? {};
+        const encryptedDeviceCount = Object.keys(encryptedPayloads).length;
+        let body = row.body;
+        let citationCode = row.citation_code ?? undefined;
+        let encryptionStatus: EncryptionStatus = "plain";
         let imageUrl: string | undefined;
+
+        if (encryptionVersion > 0) {
+          body = "Mensagem cifrada neste dispositivo.";
+          citationCode = undefined;
+          encryptionStatus = "locked";
+
+          if (deviceIdentity) {
+            const decrypted = await decryptMessageEnvelope(
+              encryptedPayloads,
+              row.sender_device_id,
+              deviceIdentity,
+              nextDeviceKeys,
+            );
+            if (decrypted) {
+              body = decrypted.body;
+              citationCode = decrypted.citationCode ?? undefined;
+              encryptionStatus = "encrypted";
+            }
+          }
+        }
 
         if (row.image_path && (isAuthor || !imageViewOnce)) {
           const { data } = await supabase.storage
@@ -1244,10 +1346,15 @@ function App() {
           id: row.id,
           roomId: row.room_id,
           authorId: row.author_id,
-          body: row.body,
+          body,
           createdAt: row.created_at,
           recipientsAtSend: row.recipients_at_send ?? [],
-          citationCode: row.citation_code ?? undefined,
+          citationCode,
+          encryptionVersion,
+          encryptedPayloads,
+          senderDeviceId: row.sender_device_id,
+          encryptionStatus,
+          encryptedDeviceCount,
           imagePath: row.image_path ?? undefined,
           imageUrl,
           imageName: row.image_name ?? undefined,
@@ -1288,7 +1395,7 @@ function App() {
     setInviteCodes(invites);
     setSyncStatus("connected");
     setSyncMessage("");
-  }, [session]);
+  }, [deviceIdentity, session]);
 
   const loadProfile = useCallback(async (currentSession: Session | null) => {
     if (!supabase || !currentSession) return null;
@@ -1372,11 +1479,51 @@ function App() {
     if (!supabase) return;
     if (!session) {
       setProfile(null);
+      setDeviceIdentity(null);
+      setDeviceKeys([]);
+      setDeviceSecurityStatus("off");
       setSyncStatus("auth");
       return;
     }
     refreshSignedInData();
   }, [refreshSignedInData, session]);
+
+  useEffect(() => {
+    if (!supabase || !session || !profile) {
+      setDeviceIdentity(null);
+      setDeviceKeys([]);
+      setDeviceSecurityStatus("off");
+      return;
+    }
+
+    let cancelled = false;
+    setDeviceIdentity(null);
+    setDeviceKeys([]);
+    setDeviceSecurityStatus("creating");
+
+    ensureDeviceIdentity(supabase, profile.id)
+      .then((identity) => {
+        if (cancelled) return;
+        setDeviceIdentity(identity);
+        setDeviceSecurityStatus("ready");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setDeviceIdentity(null);
+        setDeviceSecurityStatus("error");
+        setSyncStatus("error");
+        setSyncMessage(error instanceof Error ? error.message : "Não foi possível preparar a chave deste dispositivo.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id, session?.user.id]);
+
+  useEffect(() => {
+    if (!deviceIdentity || !profile || !session) return;
+    fetchBackendData();
+  }, [deviceIdentity?.deviceId, fetchBackendData, profile?.id, session?.user.id]);
 
   useEffect(() => {
     if (!supabase || !session || !profile) return;
@@ -1603,8 +1750,14 @@ function App() {
     const recipientsAtSend = groupMembers
       .filter((member) => member.status === "online" && member.id !== currentMember.id)
       .map((member) => member.id);
+    const messageBody = trimmed || (hasImage ? "Imagem" : "Referência");
 
     if (usingBackend && supabase && profile) {
+      if (!deviceIdentity || deviceSecurityStatus !== "ready") {
+        showNotice("A preparar a cifragem deste dispositivo. Tenta novamente dentro de instantes.");
+        return false;
+      }
+
       setSyncStatus("saving");
       const messageId = crypto.randomUUID();
       let imagePath: string | undefined;
@@ -1626,13 +1779,66 @@ function App() {
         }
       }
 
+      const { data: freshDeviceRows, error: deviceKeyError } = await supabase
+        .from("device_keys")
+        .select("*")
+        .order("last_seen_at", { ascending: false });
+
+      if (deviceKeyError) {
+        setSyncStatus("error");
+        setSyncMessage(deviceKeyError.message);
+        return false;
+      }
+
+      const freshDeviceKeys = ((freshDeviceRows ?? []) as DeviceKeyRow[]).map(deviceKeyFromRow);
+      const roomMemberIds = new Set(groupMembers.map((member) => member.id));
+      const targetDeviceKeys = freshDeviceKeys.filter((deviceKey) => roomMemberIds.has(deviceKey.memberId));
+
+      if (!targetDeviceKeys.some((deviceKey) => deviceKey.id === deviceIdentity.deviceId)) {
+        targetDeviceKeys.push({
+          id: deviceIdentity.deviceId,
+          memberId: deviceIdentity.memberId,
+          deviceLabel: getBrowserDeviceLabel(),
+          publicKey: deviceIdentity.publicJwk,
+          createdAt: deviceIdentity.createdAt,
+          lastSeenAt: new Date().toISOString(),
+          revokedAt: null,
+        });
+      }
+
+      const encryptedPayloads = await encryptMessageEnvelope(
+        { body: messageBody, citationCode: citationCode ?? null },
+        deviceIdentity,
+        targetDeviceKeys,
+      );
+      const encryptedDeviceCount = Object.keys(encryptedPayloads).length;
+
+      if (!encryptedDeviceCount) {
+        setSyncStatus("error");
+        setSyncMessage("Não foi possível cifrar a mensagem para nenhum dispositivo.");
+        return false;
+      }
+
+      setDeviceKeys(freshDeviceKeys);
+
+      const encryptedRecipients = Array.from(
+        new Set(
+          targetDeviceKeys
+            .filter((deviceKey) => encryptedPayloads[deviceKey.id] && deviceKey.memberId !== profile.id)
+            .map((deviceKey) => deviceKey.memberId),
+        ),
+      );
+
       const { error } = await supabase.from("messages").insert({
         id: messageId,
         room_id: activeGroup.id,
         author_id: profile.id,
-        body: trimmed || (hasImage ? "Imagem" : "Referência"),
-        recipients_at_send: recipientsAtSend,
-        citation_code: citationCode ?? null,
+        body: "Mensagem cifrada",
+        recipients_at_send: encryptedRecipients,
+        citation_code: null,
+        encryption_version: 1,
+        encrypted_payloads: encryptedPayloads,
+        sender_device_id: deviceIdentity.deviceId,
         image_path: imagePath ?? null,
         image_name: imageFile?.name ?? null,
         image_mime_type: imageFile?.type ?? null,
@@ -1646,7 +1852,7 @@ function App() {
         return false;
       }
       await fetchBackendData();
-      showNotice(hasImage ? "Imagem enviada." : "Mensagem enviada.");
+      showNotice(hasImage ? "Imagem enviada; legenda cifrada." : "Mensagem cifrada enviada.");
       return true;
     }
 
@@ -1660,10 +1866,13 @@ function App() {
           id: crypto.randomUUID(),
           roomId: activeGroup.id,
           authorId: currentMember.id,
-          body: trimmed || (hasImage ? "Imagem" : "Referência"),
+          body: messageBody,
           createdAt: new Date().toISOString(),
           recipientsAtSend,
           citationCode,
+          encryptionVersion: 0,
+          encryptionStatus: "plain",
+          encryptedDeviceCount: 0,
           imageUrl,
           imageName: imageFile?.name,
           imageMimeType: imageFile?.type,
@@ -2798,6 +3007,8 @@ function App() {
             sendMessage={sendMessage}
             markImageOpened={markImageOpened}
             getMessageImageUrl={getMessageImageUrl}
+            deviceSecurityStatus={deviceSecurityStatus}
+            knownDeviceCount={deviceKeys.length}
             toggleMemberStatus={toggleMemberStatus}
             copyText={copyText}
             showNotice={showNotice}
@@ -3213,6 +3424,8 @@ function ChatView({
   sendMessage,
   markImageOpened,
   getMessageImageUrl,
+  deviceSecurityStatus,
+  knownDeviceCount,
   toggleMemberStatus,
   copyText,
   showNotice,
@@ -3232,6 +3445,8 @@ function ChatView({
   sendMessage: (input: MessageInput) => Promise<boolean>;
   markImageOpened: (messageId: string) => Promise<boolean>;
   getMessageImageUrl: (message: ChatMessage) => Promise<string | null>;
+  deviceSecurityStatus: DeviceSecurityStatus;
+  knownDeviceCount: number;
   toggleMemberStatus: (id: string) => void;
   copyText: (value: string, message: string) => Promise<void>;
   showNotice: (message: string) => void;
@@ -3246,6 +3461,7 @@ function ChatView({
   const [revealedImageUrls, setRevealedImageUrls] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
+  const encryptionReady = deviceSecurityStatus === "ready";
   const visibleMessages = messages.filter((message) => {
     if (message.roomId !== activeGroup.id) return false;
     return (
@@ -3483,7 +3699,13 @@ function ChatView({
               </option>
             ))}
           </select>
-          <span className="small-pill chat-count-pill">{visibleMessages.length} visíveis para {currentMember.name}</span>
+          <div className="chat-status-pills">
+            <span className={`small-pill encryption-pill ${encryptionReady ? "ready" : deviceSecurityStatus}`}>
+              <LockKeyhole size={13} aria-hidden />
+              {encryptionReady ? `Relay cifrado · ${knownDeviceCount} disp.` : "Cifra a preparar"}
+            </span>
+            <span className="small-pill chat-count-pill">{visibleMessages.length} visíveis para {currentMember.name}</span>
+          </div>
         </header>
 
         <div className="message-list" aria-live="polite">
@@ -3498,7 +3720,7 @@ function ChatView({
                   <strong>{author?.name ?? "Pessoa"}</strong>
                   <span>{formatClock(message.createdAt)}</span>
                 </header>
-                <p>{message.body}</p>
+                <p className={message.encryptionStatus === "locked" ? "locked-message" : ""}>{message.body}</p>
                 {renderMessageImage(message)}
                 {citedTitle && (
                   <div className="message-actions">
@@ -3517,8 +3739,18 @@ function ChatView({
                   </div>
                 )}
                 <footer>
-                  Entregue a {message.recipientsAtSend.length} equipamento
-                  {message.recipientsAtSend.length === 1 ? "" : "s"}
+                  {message.encryptionVersion > 0 ? (
+                    <>
+                      <LockKeyhole size={12} aria-hidden />
+                      Cifrada para {message.encryptedDeviceCount} dispositivo
+                      {message.encryptedDeviceCount === 1 ? "" : "s"}
+                    </>
+                  ) : (
+                    <>
+                      Entregue a {message.recipientsAtSend.length} equipamento
+                      {message.recipientsAtSend.length === 1 ? "" : "s"}
+                    </>
+                  )}
                 </footer>
               </article>
             );
@@ -5212,7 +5444,12 @@ function AdminView({
   const attentionCheckIns = eventCheckIns.filter((checkIn) => checkIn.mood !== "bem");
   const openDecisions = decisions.filter((decision) => decision.status !== "decidida");
   const sensitiveMessages = messages.filter(
-    (message) => message.imagePath || message.imageUrl || message.imageViewOnce || message.imageConsentRequired,
+    (message) =>
+      message.encryptionVersion > 0 ||
+      message.imagePath ||
+      message.imageUrl ||
+      message.imageViewOnce ||
+      message.imageConsentRequired,
   );
   const missingConsent = members.filter(
     (member) => !member.consentAvailableFor || !member.consentLimits || !member.mediaPreference,
@@ -5399,6 +5636,8 @@ function AdminView({
                   <span>{groupById.get(message.roomId)?.name ?? "Sala"} · {formatClock(message.createdAt)}</span>
                   <p>{message.body}</p>
                   <div className="admin-tags">
+                    {message.encryptionVersion > 0 && <span>cifrada</span>}
+                    {message.encryptionStatus === "locked" && <span>sem chave neste dispositivo</span>}
                     {message.citationCode && <span>{message.citationCode}</span>}
                     {message.imageViewOnce && <span>ver uma vez</span>}
                     {message.imageConsentRequired && <span>envelope privado</span>}
@@ -5585,6 +5824,236 @@ function NavButton({
   );
 }
 
+function deviceKeyFromRow(row: DeviceKeyRow): DeviceKey {
+  return {
+    id: row.id,
+    memberId: row.member_id,
+    deviceLabel: row.device_label ?? "browser",
+    publicKey: row.public_key,
+    createdAt: row.created_at,
+    lastSeenAt: row.last_seen_at,
+    revokedAt: row.revoked_at,
+  };
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return window.btoa(binary);
+}
+
+function base64ToBytes(value: string) {
+  const binary = window.atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+async function importPublicDeviceKey(jwk: JsonWebKey) {
+  return window.crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    {
+      name: "ECDH",
+      namedCurve: "P-256",
+    },
+    true,
+    [],
+  );
+}
+
+async function importPrivateDeviceKey(jwk: JsonWebKey) {
+  return window.crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    {
+      name: "ECDH",
+      namedCurve: "P-256",
+    },
+    true,
+    ["deriveKey"],
+  );
+}
+
+async function deriveDeviceAesKey(privateKey: CryptoKey, publicKey: CryptoKey) {
+  return window.crypto.subtle.deriveKey(
+    {
+      name: "ECDH",
+      public: publicKey,
+    },
+    privateKey,
+    {
+      name: "AES-GCM",
+      length: 256,
+    },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+async function encryptTextForDevice(plainText: string, senderPrivateKey: CryptoKey, recipientPublicJwk: JsonWebKey) {
+  const recipientPublicKey = await importPublicDeviceKey(recipientPublicJwk);
+  const aesKey = await deriveDeviceAesKey(senderPrivateKey, recipientPublicKey);
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await window.crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv,
+    },
+    aesKey,
+    new TextEncoder().encode(plainText),
+  );
+
+  return {
+    version: 1,
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
+  } satisfies EncryptedPayload;
+}
+
+async function decryptTextFromDevice(
+  payload: EncryptedPayload,
+  recipientPrivateKey: CryptoKey,
+  senderPublicJwk: JsonWebKey,
+) {
+  const senderPublicKey = await importPublicDeviceKey(senderPublicJwk);
+  const aesKey = await deriveDeviceAesKey(recipientPrivateKey, senderPublicKey);
+  const decrypted = await window.crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: base64ToBytes(payload.iv),
+    },
+    aesKey,
+    base64ToBytes(payload.ciphertext),
+  );
+
+  return new TextDecoder().decode(decrypted);
+}
+
+async function ensureDeviceIdentity(client: SupabaseClient, memberId: string): Promise<DeviceIdentity> {
+  const storageKey = `${deviceStorePrefix}:${memberId}`;
+  const storedValue = localStorage.getItem(storageKey);
+
+  if (storedValue) {
+    let storedIdentity: (StoredDeviceIdentity & { publicKey: CryptoKey; privateKey: CryptoKey }) | null = null;
+    try {
+      const stored = JSON.parse(storedValue) as StoredDeviceIdentity;
+      if (stored.memberId === memberId && stored.deviceId && stored.publicJwk && stored.privateJwk) {
+        const publicKey = await importPublicDeviceKey(stored.publicJwk);
+        const privateKey = await importPrivateDeviceKey(stored.privateJwk);
+        storedIdentity = { ...stored, publicKey, privateKey };
+      }
+    } catch {
+      localStorage.removeItem(storageKey);
+    }
+
+    if (storedIdentity) {
+      const { error } = await client.from("device_keys").upsert({
+        id: storedIdentity.deviceId,
+        member_id: memberId,
+        device_label: getBrowserDeviceLabel(),
+        public_key: storedIdentity.publicJwk,
+        last_seen_at: new Date().toISOString(),
+        revoked_at: null,
+      });
+
+      if (error) throw error;
+      return storedIdentity;
+    }
+  }
+
+  const pair = await window.crypto.subtle.generateKey(
+    {
+      name: "ECDH",
+      namedCurve: "P-256",
+    },
+    true,
+    ["deriveKey"],
+  );
+  const publicJwk = await window.crypto.subtle.exportKey("jwk", pair.publicKey);
+  const privateJwk = await window.crypto.subtle.exportKey("jwk", pair.privateKey);
+  const stored: StoredDeviceIdentity = {
+    deviceId: `device_${crypto.randomUUID()}`,
+    memberId,
+    publicJwk,
+    privateJwk,
+    createdAt: new Date().toISOString(),
+  };
+
+  const { error } = await client.from("device_keys").upsert({
+    id: stored.deviceId,
+    member_id: memberId,
+    device_label: getBrowserDeviceLabel(),
+    public_key: publicJwk,
+    last_seen_at: new Date().toISOString(),
+    revoked_at: null,
+  });
+
+  if (error) throw error;
+
+  localStorage.setItem(storageKey, JSON.stringify(stored));
+  return { ...stored, publicKey: pair.publicKey, privateKey: pair.privateKey };
+}
+
+async function encryptMessageEnvelope(
+  payload: EncryptedMessageBody,
+  senderIdentity: DeviceIdentity,
+  targetDeviceKeys: DeviceKey[],
+) {
+  const envelope: Record<string, EncryptedPayload> = {};
+  const plainText = JSON.stringify(payload);
+
+  for (const deviceKey of targetDeviceKeys) {
+    if (deviceKey.revokedAt) continue;
+    try {
+      envelope[deviceKey.id] = await encryptTextForDevice(
+        plainText,
+        senderIdentity.privateKey,
+        deviceKey.publicKey,
+      );
+    } catch {
+      // Skip malformed or revoked-looking keys without blocking the room.
+    }
+  }
+
+  return envelope;
+}
+
+async function decryptMessageEnvelope(
+  payloads: Record<string, EncryptedPayload>,
+  senderDeviceId: string | null,
+  deviceIdentity: DeviceIdentity,
+  deviceKeys: DeviceKey[],
+): Promise<EncryptedMessageBody | null> {
+  const payload = payloads[deviceIdentity.deviceId];
+  const senderPublicJwk = deviceKeys.find((deviceKey) => deviceKey.id === senderDeviceId)?.publicKey;
+  if (!payload || !senderPublicJwk) return null;
+
+  try {
+    const plainText = await decryptTextFromDevice(payload, deviceIdentity.privateKey, senderPublicJwk);
+    const parsed = JSON.parse(plainText) as Partial<EncryptedMessageBody>;
+    if (typeof parsed.body !== "string") return null;
+    return {
+      body: parsed.body,
+      citationCode: typeof parsed.citationCode === "string" ? parsed.citationCode : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getBrowserDeviceLabel() {
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes("iphone") || userAgent.includes("android")) return "telemóvel";
+  if (userAgent.includes("ipad") || userAgent.includes("tablet")) return "tablet";
+  if (userAgent.includes("mac") || userAgent.includes("windows") || userAgent.includes("linux")) return "computador";
+  return "browser";
+}
+
 function loadState(): CommunityState {
   const stored = localStorage.getItem(storeKey);
   if (!stored) return seedState;
@@ -5636,6 +6105,11 @@ function normalizeCommunityState(state: CommunityState): CommunityState {
     privacySettings: state.privacySettings ?? seedState.privacySettings,
     messages: state.messages.map((message) => ({
       ...message,
+      encryptionVersion: message.encryptionVersion ?? 0,
+      encryptedPayloads: message.encryptedPayloads,
+      senderDeviceId: message.senderDeviceId,
+      encryptionStatus: message.encryptionStatus ?? "plain",
+      encryptedDeviceCount: message.encryptedDeviceCount ?? 0,
       imageConsentRequired: message.imageConsentRequired ?? false,
       imageExpiresAt: message.imageExpiresAt,
     })),

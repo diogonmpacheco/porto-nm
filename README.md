@@ -39,7 +39,11 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 
 - Conversas por sala/subgrupo.
 - Presença online/offline por membro.
-- Entrega simulada apenas a equipamentos/pessoas presentes no momento.
+- Relay cifrado por dispositivo para novas mensagens.
+- Cada browser cria uma chave local; a chave privada fica apenas nesse browser.
+- O Supabase guarda apenas envelopes cifrados por dispositivo e metadados de entrega.
+- Pessoas que já tenham aberto a app pelo menos uma vez podem receber mensagens cifradas mesmo que estejam offline no momento.
+- Mensagens antigas continuam em texto normal até serem migradas ou apagadas.
 - Citação de documentos e decisões usando `@`.
 - Sugestões de citações enquanto se escreve.
 - Cópia rápida de códigos de documentos/decisões.
@@ -115,6 +119,9 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Políticas admin para leitura global e eliminação de mensagens.
 - Realtime activado nas tabelas principais.
 - Storage privado para imagens.
+- Chaves públicas por dispositivo em `device_keys`.
+- Novas mensagens de texto/citação guardadas como envelopes cifrados em `messages.encrypted_payloads`.
+- Admins conseguem moderar e apagar mensagens cifradas, mas não ler o conteúdo se não tiverem a chave do dispositivo destinatário.
 - Migrations versionadas em `supabase/migrations/`.
 
 ## Dados de demonstração
@@ -198,6 +205,7 @@ npx vercel --prod --yes
 - `docs`
 - `decisions`
 - `messages`
+- `device_keys`
 - `member_intentions`
 - `warm_introductions`
 - `mutual_interests`
@@ -208,8 +216,9 @@ npx vercel --prod --yes
 
 ### Prioridade alta
 
-- Encriptação real ponta-a-ponta no chat e nas imagens.
-- P2P real ou relay mínimo para mensagens/media sensível.
+- Encriptação ponta-a-ponta de imagens/media, não só da legenda/texto.
+- WebRTC directo para mensagens/media quando as pessoas estão online ao mesmo tempo.
+- Recuperação/rotação de chaves por dispositivo sem perder acesso a mensagens antigas.
 - Denúncias/pedidos de ajuda com estado, severidade, responsável e notas internas.
 - Suspensão temporária de membros e revogação de sessões.
 - Audit log para acções de admin: alterações de papel, apagamentos, convites e acessos.

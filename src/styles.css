@@ -738,6 +738,32 @@ button:disabled {
   display: none;
 }
 
+.chat-status-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.encryption-pill.ready {
+  color: #124c45;
+  background: #edf8f3;
+  border-color: #b9d9cf;
+}
+
+.encryption-pill.creating,
+.encryption-pill.off {
+  color: #5d4a10;
+  background: #fff7d5;
+  border-color: #ead996;
+}
+
+.encryption-pill.error {
+  color: #8b332d;
+  background: #fff1ef;
+  border-color: #f1c9c4;
+}
+
 .message-list {
   display: flex;
   flex: 1;
@@ -779,7 +805,13 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.message p.locked-message {
+  color: #667174;
+  font-style: italic;
+}
+
 .message footer {
+  align-items: center;
   justify-content: flex-start;
 }
 
@@ -2047,6 +2079,17 @@ button:disabled {
 
   .chat-count-pill {
     display: none;
+  }
+
+  .chat-status-pills {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .encryption-pill {
+    min-height: 24px;
+    padding: 0 8px;
+    font-size: 11px;
   }
 
   .mobile-room-select {
