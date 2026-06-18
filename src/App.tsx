@@ -5578,6 +5578,12 @@ function PrivateVideoRooms({
     videoTiles.find((tile) => tile.state === "open") ??
     videoTiles[0];
   const sideTiles = videoTiles.filter((tile) => tile.id !== spotlightTile.id);
+  const videoStageClassName = [
+    "surface",
+    "video-stage",
+    isStageFullscreen ? "fullscreen" : "",
+    activeCall || localStream || remoteStreams.length ? "active" : "empty",
+  ].filter(Boolean).join(" ");
 
   useEffect(() => {
     if (!selectedGroup && memberGroups[0]) {
@@ -6244,7 +6250,7 @@ function PrivateVideoRooms({
         )}
       </form>
 
-      <section ref={stageRef} className={isStageFullscreen ? "surface video-stage fullscreen" : "surface video-stage"}>
+      <section ref={stageRef} className={videoStageClassName}>
         <header className="video-stage-header">
           <div>
             <Video size={18} aria-hidden />
@@ -7079,6 +7085,8 @@ function EventsView({
           const checkIns = eventCheckIns.filter((checkIn) => checkIn.eventId === event.id);
           const moodCounts = countMoods(checkIns);
           const rooms = eventRooms.filter((room) => room.eventId === event.id);
+          const visibleAttendeeIds = event.attendeeIds.slice(0, 3);
+          const hiddenAttendeeCount = Math.max(event.attendeeIds.length - visibleAttendeeIds.length, 0);
           return (
             <article className="surface event-card" key={event.id}>
               <time dateTime={event.startsAt}>
@@ -7096,13 +7104,18 @@ function EventsView({
                 <div className="event-boundaries">
                   <span>{event.vibe}</span>
                   <span>{event.photoPolicy}</span>
-                  {event.boundaryNotes && <span>{event.boundaryNotes}</span>}
-                  {event.aftercarePrompt && <span>{event.aftercarePrompt}</span>}
                 </div>
+                {(event.boundaryNotes || event.aftercarePrompt) && (
+                  <div className="event-notes">
+                    {event.boundaryNotes && <p>{event.boundaryNotes}</p>}
+                    {event.aftercarePrompt && <p>{event.aftercarePrompt}</p>}
+                  </div>
+                )}
                 <div className="attendee-row">
-                  {event.attendeeIds.map((id) => (
+                  {visibleAttendeeIds.map((id) => (
                     <span key={id}>{memberById.get(id)?.name}</span>
                   ))}
+                  {hiddenAttendeeCount > 0 && <span>+{hiddenAttendeeCount}</span>}
                 </div>
                 {checkIns.length > 0 && (
                   <div className="checkin-summary">
