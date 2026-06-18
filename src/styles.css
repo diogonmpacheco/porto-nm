@@ -764,6 +764,17 @@ button:disabled {
   border-color: #f1c9c4;
 }
 
+.direct-pill.ready {
+  color: #2b3d72;
+  background: #eef0ff;
+  border-color: #cfd5ff;
+}
+
+.direct-pill.idle {
+  color: #667174;
+  background: #f6f7f4;
+}
+
 .message-list {
   display: flex;
   flex: 1;

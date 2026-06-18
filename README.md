@@ -43,6 +43,8 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Cada browser cria uma chave local; a chave privada fica apenas nesse browser.
 - O Supabase guarda apenas envelopes cifrados por dispositivo e metadados de entrega.
 - Pessoas que já tenham aberto a app pelo menos uma vez podem receber mensagens cifradas mesmo que estejam offline no momento.
+- WebRTC tenta abrir ligações directas entre dispositivos online na mesma sala.
+- Quando uma ligação directa está aberta, a mensagem também é entregue por data channel, mantendo o relay cifrado como cópia durável/offline.
 - Mensagens antigas continuam em texto normal até serem migradas ou apagadas.
 - Citação de documentos e decisões usando `@`.
 - Sugestões de citações enquanto se escreve.
@@ -51,12 +53,14 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 
 ### Imagens privadas
 
-- Upload de imagens no chat.
+- Upload de imagens no chat com encriptação local antes do envio.
+- O ficheiro guardado no Supabase é ciphertext (`application/octet-stream`), não a imagem original.
+- A chave AES da imagem viaja apenas dentro do envelope cifrado por dispositivo.
 - Opção de imagem normal.
 - Opção **ver uma vez**.
 - Envelope privado com aviso de consentimento antes de abrir.
 - Expiração configurável.
-- Registo local de quem abriu imagens protegidas.
+- Registo de quem abriu imagens protegidas.
 - Storage privado em Supabase para imagens de mensagens.
 
 ### Memória e decisões
@@ -121,6 +125,8 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Storage privado para imagens.
 - Chaves públicas por dispositivo em `device_keys`.
 - Novas mensagens de texto/citação guardadas como envelopes cifrados em `messages.encrypted_payloads`.
+- Media nova guardada cifrada, com chave/IV só dentro do envelope cifrado por dispositivo.
+- Sinalização WebRTC curta em `p2p_signals`; o conteúdo da conversa não passa por esta tabela.
 - Admins conseguem moderar e apagar mensagens cifradas, mas não ler o conteúdo se não tiverem a chave do dispositivo destinatário.
 - Migrations versionadas em `supabase/migrations/`.
 
@@ -206,6 +212,7 @@ npx vercel --prod --yes
 - `decisions`
 - `messages`
 - `device_keys`
+- `p2p_signals`
 - `member_intentions`
 - `warm_introductions`
 - `mutual_interests`
@@ -216,8 +223,8 @@ npx vercel --prod --yes
 
 ### Prioridade alta
 
-- Encriptação ponta-a-ponta de imagens/media, não só da legenda/texto.
-- WebRTC directo para mensagens/media quando as pessoas estão online ao mesmo tempo.
+- Encriptação ponta-a-ponta para outros tipos de media além de imagem.
+- WebRTC directo também para transferência de ficheiros grandes, não só sinalização/mensagem directa.
 - Recuperação/rotação de chaves por dispositivo sem perder acesso a mensagens antigas.
 - Denúncias/pedidos de ajuda com estado, severidade, responsável e notas internas.
 - Suspensão temporária de membros e revogação de sessões.

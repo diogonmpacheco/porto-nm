@@ -34,7 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
@@ -52,6 +52,7 @@ type IntroductionStatus = "pedido" | "aceite" | "recusado" | "aberto";
 type RelationshipVisibility = "privado" | "conexões" | "comunidade";
 type EncryptionStatus = "plain" | "encrypted" | "locked";
 type DeviceSecurityStatus = "off" | "creating" | "ready" | "error";
+type DirectPeerState = "connecting" | "open" | "closed" | "failed";
 
 type Member = {
   id: string;
@@ -130,6 +131,9 @@ type ChatMessage = {
   imageUrl?: string;
   imageName?: string;
   imageMimeType?: string;
+  imageEncrypted: boolean;
+  imageEncryptionVersion: number;
+  imageDecryption?: EncryptedMediaMetadata;
   imageViewOnce: boolean;
   imageOpenedBy: string[];
   imageConsentRequired: boolean;
@@ -161,6 +165,29 @@ type EncryptedPayload = {
 type EncryptedMessageBody = {
   body: string;
   citationCode: string | null;
+  image?: EncryptedMediaMetadata | null;
+};
+
+type EncryptedMediaMetadata = {
+  key: string;
+  iv: string;
+  name: string;
+  mimeType: string;
+  size: number;
+};
+
+type EncryptedMediaResult = {
+  blob: Blob;
+  metadata: EncryptedMediaMetadata;
+};
+
+type DirectPeerStatus = {
+  peerKey: string;
+  memberId: string;
+  deviceId: string;
+  roomId: string;
+  state: DirectPeerState;
+  updatedAt: string;
 };
 
 type DeviceKey = {
@@ -365,6 +392,8 @@ type MessageRow = {
   image_path: string | null;
   image_name: string | null;
   image_mime_type: string | null;
+  image_encryption_version: number | null;
+  image_cipher_iv: string | null;
   image_view_once: boolean | null;
   image_opened_by: string[] | null;
   image_consent_required: boolean | null;
@@ -456,8 +485,74 @@ type DeviceKeyRow = {
   revoked_at: string | null;
 };
 
+type P2PSignalType = "offer" | "answer" | "ice" | "close";
+
+type P2PSignalRow = {
+  id: string;
+  room_id: string;
+  from_member_id: string;
+  from_device_id: string;
+  to_member_id: string;
+  to_device_id: string;
+  signal_type: P2PSignalType;
+  payload: Record<string, unknown>;
+  created_at: string;
+  expires_at: string;
+};
+
+type DirectChatPayload = {
+  type: "chat-message";
+  messageId: string;
+  roomId: string;
+  authorId: string;
+  body: string;
+  citationCode: string | null;
+  createdAt: string;
+  encryptedDeviceCount: number;
+  imagePath?: string;
+  imageName?: string;
+  imageMimeType?: string;
+  imageEncrypted?: boolean;
+  imageDecryption?: EncryptedMediaMetadata;
+  imageViewOnce?: boolean;
+  imageConsentRequired?: boolean;
+  imageExpiresAt?: string;
+};
+
+type DirectPeerConnection = {
+  peerKey: string;
+  memberId: string;
+  deviceId: string;
+  roomId: string;
+  peer: RTCPeerConnection;
+  channel?: RTCDataChannel;
+  pendingIce: RTCIceCandidateInit[];
+};
+
 const storeKey = "porto-nm-community-v1";
 const deviceStorePrefix = "porto_nm_device_identity";
+const p2pConnectionConfig: RTCConfiguration = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+};
+const communityRealtimeTables = [
+  "profiles",
+  "groups",
+  "group_members",
+  "events",
+  "event_attendees",
+  "event_rooms",
+  "docs",
+  "decisions",
+  "event_checkins",
+  "member_intentions",
+  "warm_introductions",
+  "mutual_interests",
+  "relationship_links",
+  "privacy_settings",
+  "messages",
+  "invite_codes",
+  "device_keys",
+];
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const supabase =
@@ -1020,6 +1115,8 @@ const seedState: CommunityState = {
       encryptionVersion: 0,
       encryptionStatus: "plain",
       encryptedDeviceCount: 0,
+      imageEncrypted: false,
+      imageEncryptionVersion: 0,
       imageViewOnce: false,
       imageOpenedBy: [],
       imageConsentRequired: false,
@@ -1036,6 +1133,8 @@ const seedState: CommunityState = {
       encryptionVersion: 0,
       encryptionStatus: "plain",
       encryptedDeviceCount: 0,
+      imageEncrypted: false,
+      imageEncryptionVersion: 0,
       imageViewOnce: false,
       imageOpenedBy: [],
       imageConsentRequired: false,
@@ -1050,6 +1149,8 @@ const seedState: CommunityState = {
       encryptionVersion: 0,
       encryptionStatus: "plain",
       encryptedDeviceCount: 0,
+      imageEncrypted: false,
+      imageEncryptionVersion: 0,
       imageViewOnce: false,
       imageOpenedBy: [],
       imageConsentRequired: false,
@@ -1065,6 +1166,8 @@ const seedState: CommunityState = {
       encryptionVersion: 0,
       encryptionStatus: "plain",
       encryptedDeviceCount: 0,
+      imageEncrypted: false,
+      imageEncryptionVersion: 0,
       imageViewOnce: false,
       imageOpenedBy: [],
       imageConsentRequired: false,
@@ -1091,6 +1194,14 @@ function App() {
   const [deviceIdentity, setDeviceIdentity] = useState<DeviceIdentity | null>(null);
   const [deviceKeys, setDeviceKeys] = useState<DeviceKey[]>([]);
   const [deviceSecurityStatus, setDeviceSecurityStatus] = useState<DeviceSecurityStatus>("off");
+  const [directPeerStatuses, setDirectPeerStatuses] = useState<DirectPeerStatus[]>([]);
+  const stateRef = useRef(state);
+  const profileRef = useRef(profile);
+  const activeGroupIdRef = useRef(activeGroupId);
+  const deviceIdentityRef = useRef(deviceIdentity);
+  const deviceKeysRef = useRef(deviceKeys);
+  const directPeersRef = useRef(new Map<string, DirectPeerConnection>());
+  const seenSignalIdsRef = useRef(new Set<string>());
 
   const fetchBackendData = useCallback(async () => {
     if (!supabase || !session) return;
@@ -1310,8 +1421,13 @@ function App() {
         const encryptionVersion = row.encryption_version ?? 0;
         const encryptedPayloads = row.encrypted_payloads ?? {};
         const encryptedDeviceCount = Object.keys(encryptedPayloads).length;
+        const imageEncryptionVersion = row.image_encryption_version ?? 0;
+        const imageEncrypted = imageEncryptionVersion > 0;
         let body = row.body;
         let citationCode = row.citation_code ?? undefined;
+        let imageName = row.image_name ?? undefined;
+        let imageMimeType = row.image_mime_type ?? undefined;
+        let imageDecryption: EncryptedMediaMetadata | undefined;
         let encryptionStatus: EncryptionStatus = "plain";
         let imageUrl: string | undefined;
 
@@ -1330,12 +1446,17 @@ function App() {
             if (decrypted) {
               body = decrypted.body;
               citationCode = decrypted.citationCode ?? undefined;
+              imageDecryption = decrypted.image ?? undefined;
+              if (imageDecryption) {
+                imageName = imageDecryption.name;
+                imageMimeType = imageDecryption.mimeType;
+              }
               encryptionStatus = "encrypted";
             }
           }
         }
 
-        if (row.image_path && (isAuthor || !imageViewOnce)) {
+        if (row.image_path && !imageEncrypted && (isAuthor || !imageViewOnce)) {
           const { data } = await supabase.storage
             .from("message-images")
             .createSignedUrl(row.image_path, 60 * 60);
@@ -1357,8 +1478,11 @@ function App() {
           encryptedDeviceCount,
           imagePath: row.image_path ?? undefined,
           imageUrl,
-          imageName: row.image_name ?? undefined,
-          imageMimeType: row.image_mime_type ?? undefined,
+          imageName,
+          imageMimeType,
+          imageEncrypted,
+          imageEncryptionVersion,
+          imageDecryption,
           imageViewOnce,
           imageOpenedBy,
           imageConsentRequired: row.image_consent_required ?? false,
@@ -1528,15 +1652,18 @@ function App() {
   useEffect(() => {
     if (!supabase || !session || !profile) return;
     let reloadHandle: number | undefined;
-    const channel = supabase
-      .channel("community-tables")
-      .on("postgres_changes", { event: "*", schema: "public" }, () => {
+    const channel = supabase.channel("community-tables");
+
+    communityRealtimeTables.forEach((table) => {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
         if (reloadHandle) window.clearTimeout(reloadHandle);
         reloadHandle = window.setTimeout(() => {
           fetchBackendData();
         }, 200);
-      })
-      .subscribe();
+      });
+    });
+
+    channel.subscribe();
 
     return () => {
       if (reloadHandle) window.clearTimeout(reloadHandle);
@@ -1549,6 +1676,42 @@ function App() {
       localStorage.setItem(storeKey, JSON.stringify(state));
     }
   }, [state, usingBackend]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
+  useEffect(() => {
+    activeGroupIdRef.current = activeGroupId;
+  }, [activeGroupId]);
+
+  useEffect(() => {
+    deviceIdentityRef.current = deviceIdentity;
+  }, [deviceIdentity]);
+
+  useEffect(() => {
+    deviceKeysRef.current = deviceKeys;
+  }, [deviceKeys]);
+
+  useEffect(() => {
+    if (!supabase || !deviceIdentity) return;
+
+    const updateLastSeen = () => {
+      supabase
+        .from("device_keys")
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq("id", deviceIdentity.deviceId)
+        .then(() => undefined);
+    };
+
+    updateLastSeen();
+    const interval = window.setInterval(updateLastSeen, 30_000);
+    return () => window.clearInterval(interval);
+  }, [deviceIdentity?.deviceId]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1606,6 +1769,9 @@ function App() {
   const currentMember = memberById.get(currentMemberId) ?? state.members[0];
   const syncCopy = getSyncCopy(syncStatus);
   const onlineMembers = state.members.filter((member) => member.status === "online");
+  const directPeerCount = directPeerStatuses.filter(
+    (status) => status.roomId === activeGroupId && status.state === "open",
+  ).length;
   const upcomingEvents = [...state.events].sort(
     (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
   );
@@ -1639,6 +1805,329 @@ function App() {
   function showNotice(message: string) {
     setNotice(message);
   }
+
+  function updateDirectPeerStatus(connection: DirectPeerConnection, state: DirectPeerState) {
+    setDirectPeerStatuses((current) => {
+      const next = current.filter((status) => status.peerKey !== connection.peerKey);
+      if (state !== "closed") {
+        next.push({
+          peerKey: connection.peerKey,
+          memberId: connection.memberId,
+          deviceId: connection.deviceId,
+          roomId: connection.roomId,
+          state,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return next;
+    });
+  }
+
+  function closeDirectPeer(peerKey: string) {
+    const connection = directPeersRef.current.get(peerKey);
+    if (!connection) return;
+    connection.channel?.close();
+    connection.peer.close();
+    directPeersRef.current.delete(peerKey);
+    updateDirectPeerStatus(connection, "closed");
+  }
+
+  async function sendP2PSignal(
+    toMemberId: string,
+    toDeviceId: string,
+    roomId: string,
+    signalType: P2PSignalType,
+    payload: Record<string, unknown>,
+  ) {
+    const currentProfile = profileRef.current;
+    const currentIdentity = deviceIdentityRef.current;
+    if (!supabase || !currentProfile || !currentIdentity) return;
+
+    await supabase.from("p2p_signals").insert({
+      id: `sig_${crypto.randomUUID()}`,
+      room_id: roomId,
+      from_member_id: currentProfile.id,
+      from_device_id: currentIdentity.deviceId,
+      to_member_id: toMemberId,
+      to_device_id: toDeviceId,
+      signal_type: signalType,
+      payload,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    });
+  }
+
+  function setupDirectChannel(connection: DirectPeerConnection, channel: RTCDataChannel) {
+    connection.channel = channel;
+    channel.binaryType = "arraybuffer";
+    channel.onopen = () => updateDirectPeerStatus(connection, "open");
+    channel.onclose = () => updateDirectPeerStatus(connection, "closed");
+    channel.onerror = () => updateDirectPeerStatus(connection, "failed");
+    channel.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      try {
+        const payload = JSON.parse(event.data) as DirectChatPayload;
+        if (payload.type === "chat-message") {
+          handleDirectChatPayload(payload);
+        }
+      } catch {
+        // Ignore malformed direct packets.
+      }
+    };
+  }
+
+  async function createDirectPeer(remoteDevice: DeviceKey, roomId: string, shouldOffer: boolean) {
+    if (!("RTCPeerConnection" in window)) return null;
+    const currentProfile = profileRef.current;
+    const currentIdentity = deviceIdentityRef.current;
+    if (!currentProfile || !currentIdentity || remoteDevice.memberId === currentProfile.id) return null;
+
+    const peerKey = remoteDevice.id;
+    const existing = directPeersRef.current.get(peerKey);
+    if (existing && existing.peer.connectionState !== "closed") return existing;
+
+    const peer = new RTCPeerConnection(p2pConnectionConfig);
+    const connection: DirectPeerConnection = {
+      peerKey,
+      memberId: remoteDevice.memberId,
+      deviceId: remoteDevice.id,
+      roomId,
+      peer,
+      pendingIce: [],
+    };
+    directPeersRef.current.set(peerKey, connection);
+    updateDirectPeerStatus(connection, "connecting");
+
+    peer.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      sendP2PSignal(
+        remoteDevice.memberId,
+        remoteDevice.id,
+        roomId,
+        "ice",
+        event.candidate.toJSON() as unknown as Record<string, unknown>,
+      );
+    };
+    peer.ondatachannel = (event) => setupDirectChannel(connection, event.channel);
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === "connected") updateDirectPeerStatus(connection, "open");
+      if (peer.connectionState === "failed" || peer.connectionState === "disconnected") {
+        updateDirectPeerStatus(connection, "failed");
+      }
+      if (peer.connectionState === "closed") updateDirectPeerStatus(connection, "closed");
+    };
+
+    if (shouldOffer) {
+      setupDirectChannel(connection, peer.createDataChannel("porto-nm-direct"));
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      await sendP2PSignal(remoteDevice.memberId, remoteDevice.id, roomId, "offer", offer as unknown as Record<string, unknown>);
+    }
+
+    return connection;
+  }
+
+  async function applyQueuedIce(connection: DirectPeerConnection) {
+    if (!connection.peer.remoteDescription) return;
+    const queued = [...connection.pendingIce];
+    connection.pendingIce = [];
+    for (const candidate of queued) {
+      try {
+        await connection.peer.addIceCandidate(candidate);
+      } catch {
+        // ICE candidates can legitimately go stale while peers reconnect.
+      }
+    }
+  }
+
+  async function handleP2PSignal(row: P2PSignalRow) {
+    const currentIdentity = deviceIdentityRef.current;
+    const currentProfile = profileRef.current;
+    if (!currentIdentity || !currentProfile || row.to_device_id !== currentIdentity.deviceId) return;
+    if (seenSignalIdsRef.current.has(row.id)) return;
+    seenSignalIdsRef.current.add(row.id);
+    if (new Date(row.expires_at).getTime() < Date.now()) return;
+
+    const remoteDevice =
+      deviceKeysRef.current.find((deviceKey) => deviceKey.id === row.from_device_id) ?? {
+        id: row.from_device_id,
+        memberId: row.from_member_id,
+        deviceLabel: "browser",
+        publicKey: {},
+        createdAt: row.created_at,
+        lastSeenAt: row.created_at,
+        revokedAt: null,
+      };
+
+    if (row.signal_type === "offer") {
+      const connection = await createDirectPeer(remoteDevice, row.room_id, false);
+      if (!connection) return;
+      await connection.peer.setRemoteDescription(row.payload as unknown as RTCSessionDescriptionInit);
+      await applyQueuedIce(connection);
+      const answer = await connection.peer.createAnswer();
+      await connection.peer.setLocalDescription(answer);
+      await sendP2PSignal(row.from_member_id, row.from_device_id, row.room_id, "answer", answer as unknown as Record<string, unknown>);
+      return;
+    }
+
+    const connection = directPeersRef.current.get(row.from_device_id);
+    if (!connection) return;
+
+    if (row.signal_type === "answer") {
+      await connection.peer.setRemoteDescription(row.payload as unknown as RTCSessionDescriptionInit);
+      await applyQueuedIce(connection);
+      return;
+    }
+
+    if (row.signal_type === "ice") {
+      const candidate = row.payload as RTCIceCandidateInit;
+      if (!connection.peer.remoteDescription) {
+        connection.pendingIce.push(candidate);
+        return;
+      }
+      try {
+        await connection.peer.addIceCandidate(candidate);
+      } catch {
+        // Candidate may refer to an older negotiation.
+      }
+      return;
+    }
+
+    if (row.signal_type === "close") {
+      closeDirectPeer(row.from_device_id);
+    }
+  }
+
+  function handleDirectChatPayload(payload: DirectChatPayload) {
+    const currentProfile = profileRef.current;
+    if (!currentProfile || payload.authorId === currentProfile.id) return;
+
+    setState((current) => {
+      if (current.messages.some((message) => message.id === payload.messageId)) return current;
+      return {
+        ...current,
+        messages: [
+          ...current.messages,
+          {
+            id: payload.messageId,
+            roomId: payload.roomId,
+            authorId: payload.authorId,
+            body: payload.body,
+            createdAt: payload.createdAt,
+            recipientsAtSend: [currentProfile.id],
+            citationCode: payload.citationCode ?? undefined,
+            encryptionVersion: 1,
+            encryptionStatus: "encrypted",
+            encryptedDeviceCount: payload.encryptedDeviceCount,
+            imagePath: payload.imagePath,
+            imageName: payload.imageName,
+            imageMimeType: payload.imageMimeType,
+            imageEncrypted: Boolean(payload.imageEncrypted),
+            imageEncryptionVersion: payload.imageEncrypted ? 1 : 0,
+            imageDecryption: payload.imageDecryption,
+            imageViewOnce: Boolean(payload.imageViewOnce),
+            imageOpenedBy: [],
+            imageConsentRequired: Boolean(payload.imageConsentRequired),
+            imageExpiresAt: payload.imageExpiresAt,
+          },
+        ],
+      };
+    });
+  }
+
+  function sendDirectChatMessage(payload: DirectChatPayload) {
+    let sent = 0;
+    directPeersRef.current.forEach((connection) => {
+      if (connection.roomId !== payload.roomId || connection.channel?.readyState !== "open") return;
+      try {
+        connection.channel.send(JSON.stringify(payload));
+        sent += 1;
+      } catch {
+        updateDirectPeerStatus(connection, "failed");
+      }
+    });
+    return sent;
+  }
+
+  useEffect(() => {
+    if (!supabase || !profile || !deviceIdentity) return;
+
+    const loadPendingSignals = async () => {
+      const { data } = await supabase
+        .from("p2p_signals")
+        .select("*")
+        .eq("to_device_id", deviceIdentity.deviceId)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      ((data ?? []) as P2PSignalRow[]).forEach((row) => {
+        handleP2PSignal(row);
+      });
+    };
+
+    loadPendingSignals();
+    const channel = supabase
+      .channel(`p2p-signals-${deviceIdentity.deviceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "p2p_signals",
+          filter: `to_device_id=eq.${deviceIdentity.deviceId}`,
+        },
+        (payload) => {
+          handleP2PSignal(payload.new as P2PSignalRow);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [deviceIdentity?.deviceId, profile?.id]);
+
+  useEffect(() => {
+    if (!supabase || !profile || !deviceIdentity || !("RTCPeerConnection" in window)) {
+      directPeersRef.current.forEach((connection) => closeDirectPeer(connection.peerKey));
+      return;
+    }
+
+    const roomMemberIds = new Set(
+      state.members
+        .filter((member) => member.groupIds.includes(activeGroupId) && member.status === "online")
+        .map((member) => member.id),
+    );
+    const activeDeviceKeys = deviceKeys.filter(
+      (deviceKey) =>
+        deviceKey.id !== deviceIdentity.deviceId &&
+        roomMemberIds.has(deviceKey.memberId) &&
+        isRecentlySeenDevice(deviceKey),
+    );
+    const desiredPeerKeys = new Set(activeDeviceKeys.map((deviceKey) => deviceKey.id));
+
+    directPeersRef.current.forEach((connection) => {
+      if (connection.roomId !== activeGroupId || !desiredPeerKeys.has(connection.peerKey)) {
+        closeDirectPeer(connection.peerKey);
+      }
+    });
+
+    activeDeviceKeys.forEach((deviceKey) => {
+      if (deviceIdentity.deviceId < deviceKey.id) {
+        createDirectPeer(deviceKey, activeGroupId, true);
+      }
+    });
+  }, [activeGroupId, deviceIdentity?.deviceId, deviceKeys, profile?.id, state.members]);
+
+  useEffect(() => {
+    return () => {
+      directPeersRef.current.forEach((connection) => {
+        connection.channel?.close();
+        connection.peer.close();
+      });
+      directPeersRef.current.clear();
+    };
+  }, []);
 
   async function copyText(value: string, message: string) {
     try {
@@ -1760,15 +2249,18 @@ function App() {
 
       setSyncStatus("saving");
       const messageId = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
       let imagePath: string | undefined;
+      let encryptedMedia: EncryptedMediaResult | undefined;
 
       if (imageFile) {
-        imagePath = `${profile.id}/${messageId}-${safeFileName(imageFile.name)}`;
+        encryptedMedia = await encryptMediaFile(imageFile);
+        imagePath = `${profile.id}/${messageId}-${safeFileName(imageFile.name)}.enc`;
         const { error: uploadError } = await supabase.storage
           .from("message-images")
-          .upload(imagePath, imageFile, {
+          .upload(imagePath, encryptedMedia.blob, {
             cacheControl: "3600",
-            contentType: imageFile.type,
+            contentType: "application/octet-stream",
             upsert: false,
           });
 
@@ -1807,7 +2299,11 @@ function App() {
       }
 
       const encryptedPayloads = await encryptMessageEnvelope(
-        { body: messageBody, citationCode: citationCode ?? null },
+        {
+          body: messageBody,
+          citationCode: citationCode ?? null,
+          image: encryptedMedia?.metadata ?? null,
+        },
         deviceIdentity,
         targetDeviceKeys,
       );
@@ -1833,6 +2329,7 @@ function App() {
         id: messageId,
         room_id: activeGroup.id,
         author_id: profile.id,
+        created_at: createdAt,
         body: "Mensagem cifrada",
         recipients_at_send: encryptedRecipients,
         citation_code: null,
@@ -1840,8 +2337,10 @@ function App() {
         encrypted_payloads: encryptedPayloads,
         sender_device_id: deviceIdentity.deviceId,
         image_path: imagePath ?? null,
-        image_name: imageFile?.name ?? null,
-        image_mime_type: imageFile?.type ?? null,
+        image_name: imageFile ? "media-cifrada.enc" : null,
+        image_mime_type: imageFile ? "application/octet-stream" : null,
+        image_encryption_version: imageFile ? 1 : 0,
+        image_cipher_iv: encryptedMedia?.metadata.iv ?? null,
         image_view_once: Boolean(input.imageViewOnce),
         image_consent_required: imageConsentRequired,
         image_expires_at: imageExpiresAt ?? null,
@@ -1851,8 +2350,34 @@ function App() {
         setSyncMessage(error.message);
         return false;
       }
+      const directCount = sendDirectChatMessage({
+        type: "chat-message",
+        messageId,
+        roomId: activeGroup.id,
+        authorId: profile.id,
+        body: messageBody,
+        citationCode: citationCode ?? null,
+        createdAt,
+        encryptedDeviceCount,
+        imagePath,
+        imageName: encryptedMedia?.metadata.name,
+        imageMimeType: encryptedMedia?.metadata.mimeType,
+        imageEncrypted: Boolean(encryptedMedia),
+        imageDecryption: encryptedMedia?.metadata,
+        imageViewOnce: Boolean(input.imageViewOnce),
+        imageConsentRequired,
+        imageExpiresAt,
+      });
       await fetchBackendData();
-      showNotice(hasImage ? "Imagem enviada; legenda cifrada." : "Mensagem cifrada enviada.");
+      showNotice(
+        hasImage
+          ? directCount
+            ? `Imagem cifrada enviada; ${directCount} ligação directa.`
+            : "Imagem cifrada enviada."
+          : directCount
+            ? `Mensagem cifrada enviada; ${directCount} ligação directa.`
+            : "Mensagem cifrada enviada.",
+      );
       return true;
     }
 
@@ -1876,6 +2401,8 @@ function App() {
           imageUrl,
           imageName: imageFile?.name,
           imageMimeType: imageFile?.type,
+          imageEncrypted: false,
+          imageEncryptionVersion: 0,
           imageViewOnce: Boolean(input.imageViewOnce),
           imageOpenedBy: [],
           imageConsentRequired,
@@ -1925,7 +2452,31 @@ function App() {
       return null;
     }
 
-    return data?.signedUrl ?? null;
+    if (!data?.signedUrl) return null;
+
+    if (!message.imageEncrypted) {
+      return data.signedUrl;
+    }
+
+    if (!message.imageDecryption) {
+      showNotice("Este dispositivo não tem a chave desta imagem.");
+      return null;
+    }
+
+    const response = await fetch(data.signedUrl);
+    if (!response.ok) {
+      setSyncStatus("error");
+      setSyncMessage("Não foi possível descarregar a imagem cifrada.");
+      return null;
+    }
+
+    try {
+      const decryptedBlob = await decryptMediaBlob(await response.blob(), message.imageDecryption);
+      return URL.createObjectURL(decryptedBlob);
+    } catch {
+      showNotice("Não foi possível decifrar esta imagem neste dispositivo.");
+      return null;
+    }
   }
 
   async function deleteMessage(messageId: string) {
@@ -3009,6 +3560,7 @@ function App() {
             getMessageImageUrl={getMessageImageUrl}
             deviceSecurityStatus={deviceSecurityStatus}
             knownDeviceCount={deviceKeys.length}
+            directPeerCount={directPeerCount}
             toggleMemberStatus={toggleMemberStatus}
             copyText={copyText}
             showNotice={showNotice}
@@ -3426,6 +3978,7 @@ function ChatView({
   getMessageImageUrl,
   deviceSecurityStatus,
   knownDeviceCount,
+  directPeerCount,
   toggleMemberStatus,
   copyText,
   showNotice,
@@ -3447,6 +4000,7 @@ function ChatView({
   getMessageImageUrl: (message: ChatMessage) => Promise<string | null>;
   deviceSecurityStatus: DeviceSecurityStatus;
   knownDeviceCount: number;
+  directPeerCount: number;
   toggleMemberStatus: (id: string) => void;
   copyText: (value: string, message: string) => Promise<void>;
   showNotice: (message: string) => void;
@@ -3567,12 +4121,23 @@ function ChatView({
     const expired = message.imageExpiresAt ? new Date(message.imageExpiresAt).getTime() <= Date.now() : false;
     const visibleImageUrl = message.imageViewOnce && !isOwn ? revealedUrl : revealedUrl || message.imageUrl;
     const needsConsent = message.imageConsentRequired && !isOwn && !openedByMe && !revealedUrl;
+    const encryptedLocked = message.imageEncrypted && !message.imageDecryption;
+    const needsEncryptedReveal = message.imageEncrypted && !visibleImageUrl && !encryptedLocked;
 
     if (expired) {
       return (
         <div className="image-placeholder">
           <Timer size={18} aria-hidden />
           <span>Imagem expirada</span>
+        </div>
+      );
+    }
+
+    if (encryptedLocked) {
+      return (
+        <div className="image-placeholder encrypted-media">
+          <LockKeyhole size={18} aria-hidden />
+          <span>Media cifrada sem chave neste dispositivo</span>
         </div>
       );
     }
@@ -3591,7 +4156,17 @@ function ChatView({
         <button className="image-reveal consent-envelope" type="button" onClick={() => revealImage(message)}>
           <LockKeyhole size={18} aria-hidden />
           <span>{message.imageViewOnce ? "Abrir imagem uma vez" : "Abrir com consentimento"}</span>
-          <small>Sem guardar, reenviar ou mostrar a terceiros.</small>
+          <small>{message.imageEncrypted ? "Decifra neste dispositivo." : "Sem guardar, reenviar ou mostrar a terceiros."}</small>
+        </button>
+      );
+    }
+
+    if (needsEncryptedReveal) {
+      return (
+        <button className="image-reveal encrypted-media" type="button" onClick={() => revealImage(message)}>
+          <LockKeyhole size={18} aria-hidden />
+          <span>Abrir media cifrada</span>
+          <small>A chave fica apenas neste dispositivo.</small>
         </button>
       );
     }
@@ -3611,7 +4186,13 @@ function ChatView({
         {message.imageConsentRequired && <span className="image-watermark">{currentMember.name}</span>}
         <figcaption>
           {message.imageViewOnce ? <EyeOff size={14} aria-hidden /> : <ShieldCheck size={14} aria-hidden />}
-          {message.imageViewOnce ? "Ver uma vez" : message.imageConsentRequired ? "Envelope privado" : "Imagem"}
+          {message.imageEncrypted
+            ? "Media E2EE"
+            : message.imageViewOnce
+              ? "Ver uma vez"
+              : message.imageConsentRequired
+                ? "Envelope privado"
+                : "Imagem"}
           {message.imageExpiresAt ? ` · expira ${formatExpiry(message.imageExpiresAt)}` : ""}
         </figcaption>
       </figure>
@@ -3703,6 +4284,10 @@ function ChatView({
             <span className={`small-pill encryption-pill ${encryptionReady ? "ready" : deviceSecurityStatus}`}>
               <LockKeyhole size={13} aria-hidden />
               {encryptionReady ? `Relay cifrado · ${knownDeviceCount} disp.` : "Cifra a preparar"}
+            </span>
+            <span className={`small-pill direct-pill ${directPeerCount > 0 ? "ready" : "idle"}`}>
+              <RadioTower size={13} aria-hidden />
+              {directPeerCount > 0 ? `Directo · ${directPeerCount}` : "Directo em espera"}
             </span>
             <span className="small-pill chat-count-pill">{visibleMessages.length} visíveis para {currentMember.name}</span>
           </div>
@@ -5639,6 +6224,7 @@ function AdminView({
                     {message.encryptionVersion > 0 && <span>cifrada</span>}
                     {message.encryptionStatus === "locked" && <span>sem chave neste dispositivo</span>}
                     {message.citationCode && <span>{message.citationCode}</span>}
+                    {message.imageEncrypted && <span>media E2EE</span>}
                     {message.imageViewOnce && <span>ver uma vez</span>}
                     {message.imageConsentRequired && <span>envelope privado</span>}
                   </div>
@@ -5934,6 +6520,61 @@ async function decryptTextFromDevice(
   return new TextDecoder().decode(decrypted);
 }
 
+async function encryptMediaFile(file: File): Promise<EncryptedMediaResult> {
+  const key = await window.crypto.subtle.generateKey(
+    {
+      name: "AES-GCM",
+      length: 256,
+    },
+    true,
+    ["encrypt", "decrypt"],
+  );
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await window.crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv,
+    },
+    key,
+    await file.arrayBuffer(),
+  );
+  const rawKey = await window.crypto.subtle.exportKey("raw", key);
+
+  return {
+    blob: new Blob([ciphertext], { type: "application/octet-stream" }),
+    metadata: {
+      key: bytesToBase64(new Uint8Array(rawKey)),
+      iv: bytesToBase64(iv),
+      name: file.name,
+      mimeType: file.type,
+      size: file.size,
+    },
+  };
+}
+
+async function decryptMediaBlob(encryptedBlob: Blob, metadata: EncryptedMediaMetadata) {
+  const key = await window.crypto.subtle.importKey(
+    "raw",
+    base64ToBytes(metadata.key),
+    {
+      name: "AES-GCM",
+      length: 256,
+    },
+    false,
+    ["decrypt"],
+  );
+  const decrypted = await window.crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: base64ToBytes(metadata.iv),
+    },
+    key,
+    await encryptedBlob.arrayBuffer(),
+  );
+
+  return new Blob([decrypted], { type: metadata.mimeType });
+}
+
 async function ensureDeviceIdentity(client: SupabaseClient, memberId: string): Promise<DeviceIdentity> {
   const storageKey = `${deviceStorePrefix}:${memberId}`;
   const storedValue = localStorage.getItem(storageKey);
@@ -6054,6 +6695,10 @@ function getBrowserDeviceLabel() {
   return "browser";
 }
 
+function isRecentlySeenDevice(deviceKey: DeviceKey) {
+  return Date.now() - new Date(deviceKey.lastSeenAt).getTime() < 2 * 60 * 1000;
+}
+
 function loadState(): CommunityState {
   const stored = localStorage.getItem(storeKey);
   if (!stored) return seedState;
@@ -6110,6 +6755,9 @@ function normalizeCommunityState(state: CommunityState): CommunityState {
       senderDeviceId: message.senderDeviceId,
       encryptionStatus: message.encryptionStatus ?? "plain",
       encryptedDeviceCount: message.encryptedDeviceCount ?? 0,
+      imageEncrypted: message.imageEncrypted ?? false,
+      imageEncryptionVersion: message.imageEncryptionVersion ?? 0,
+      imageDecryption: message.imageDecryption,
       imageConsentRequired: message.imageConsentRequired ?? false,
       imageExpiresAt: message.imageExpiresAt,
     })),
