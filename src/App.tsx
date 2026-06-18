@@ -4091,9 +4091,6 @@ function App() {
       )}
       <aside className="sidebar">
         <div className="brand-block">
-          <div className="brand-mark">
-            <Sparkles size={22} aria-hidden />
-          </div>
           <div>
             <h1>entra.</h1>
             <p>com sentimento</p>
@@ -4353,10 +4350,12 @@ function LoadingScreen({ label }: { label: string }) {
   return (
     <main className="auth-screen">
       <section className="auth-panel surface">
-        <div className="brand-mark">
-          <Sparkles size={22} aria-hidden />
+        <div className="brand-block compact text-lockup">
+          <div>
+            <h1>entra.</h1>
+            <p>{label}</p>
+          </div>
         </div>
-        <h1>{label}</h1>
         <p>A preparar a ligação segura à comunidade.</p>
       </section>
     </main>
@@ -4419,9 +4418,6 @@ function AuthView() {
     <main className="auth-screen">
       <section className="auth-panel surface">
         <div className="brand-block compact">
-          <div className="brand-mark">
-            <Sparkles size={22} aria-hidden />
-          </div>
           <div>
             <h1>entra.</h1>
             <p>Porto NM privado</p>
@@ -4505,9 +4501,6 @@ function OnboardingView({
     <main className="auth-screen">
       <section className="auth-panel surface">
         <div className="brand-block compact">
-          <div className="brand-mark">
-            <HandHeart size={22} aria-hidden />
-          </div>
           <div>
             <h1>{mode === "founder" ? "Primeiro admin" : "Convite"}</h1>
             <p>{mode === "founder" ? "Criar a raiz da comunidade" : "Vincular entrada a quem convidou"}</p>
