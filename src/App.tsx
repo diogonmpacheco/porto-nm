@@ -9,20 +9,24 @@ import {
   Eye,
   EyeOff,
   FilePlus2,
+  GitBranch,
   HandHeart,
   HeartHandshake,
+  Heart,
   Image as ImageIcon,
   Link2,
   LockKeyhole,
   MessageCircle,
   Network,
   Plus,
+  RadioTower,
   RefreshCw,
   Search,
   ShieldCheck,
   Sparkles,
   Timer,
   Trash2,
+  UserPlus,
   Users,
   Vote,
   Wifi,
@@ -35,13 +39,17 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } fro
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
 type GroupPrivacy = "aberto" | "convite" | "secreto";
-type NavKey = "hoje" | "chat" | "eventos" | "docs" | "grupos" | "entradas";
+type NavKey = "hoje" | "chat" | "eventos" | "docs" | "conexoes" | "grupos" | "entradas";
 type EventVibe = "social" | "discussão" | "festa" | "íntimo" | "público";
 type PhotoPolicy = "sem fotos" | "perguntar primeiro" | "zonas comuns ok";
 type DecisionStatus = "rascunho" | "aberta" | "decidida";
 type DecisionVoteValue = "sim" | "não" | "abstenção" | "bloqueio";
 type CheckInMood = "bem" | "misto" | "atenção";
 type CheckInVisibility = "admins" | "sponsor" | "comunidade";
+type IntentionKind = "amizades" | "dates" | "flirt" | "eventos" | "indisponível" | "só intro";
+type InterestKind = "amizade" | "date" | "flirt" | "evento";
+type IntroductionStatus = "pedido" | "aceite" | "recusado" | "aberto";
+type RelationshipVisibility = "privado" | "conexões" | "comunidade";
 
 type Member = {
   id: string;
@@ -83,6 +91,16 @@ type EventItem = {
   aftercarePrompt: string;
 };
 
+type EventRoom = {
+  id: string;
+  eventId: string;
+  name: string;
+  purpose: string;
+  expiresAt: string;
+  createdBy: string | null;
+  memberIds: string[];
+};
+
 type CommunityDoc = {
   id: string;
   code: string;
@@ -115,10 +133,58 @@ type CommunityState = {
   members: Member[];
   groups: Group[];
   events: EventItem[];
+  eventRooms: EventRoom[];
   docs: CommunityDoc[];
   decisions: DecisionRecord[];
   eventCheckIns: EventCheckIn[];
+  intentions: MemberIntention[];
+  introductions: WarmIntroduction[];
+  interests: MutualInterest[];
+  relationships: RelationshipLink[];
+  privacySettings: PrivacySettings;
   messages: ChatMessage[];
+};
+
+type MemberIntention = {
+  memberId: string;
+  kinds: IntentionKind[];
+  note: string;
+  updatedAt: string;
+};
+
+type WarmIntroduction = {
+  id: string;
+  requesterId: string;
+  targetId: string;
+  connectorId: string;
+  note: string;
+  status: IntroductionStatus;
+  createdAt: string;
+};
+
+type MutualInterest = {
+  id: string;
+  fromId: string;
+  toId: string;
+  kind: InterestKind;
+  createdAt: string;
+};
+
+type RelationshipLink = {
+  id: string;
+  memberId: string;
+  relatedMemberId: string;
+  label: string;
+  visibility: RelationshipVisibility;
+  createdAt: string;
+};
+
+type PrivacySettings = {
+  deviceOnlyMessages: boolean;
+  localMediaVault: boolean;
+  metadataStripping: boolean;
+  p2pReady: boolean;
+  relayPlan: string;
 };
 
 type DecisionVote = {
@@ -224,6 +290,16 @@ type EventAttendeeRow = {
   member_id: string;
 };
 
+type EventRoomRow = {
+  id: string;
+  event_id: string;
+  name: string;
+  purpose: string;
+  expires_at: string;
+  created_by: string | null;
+  member_ids: string[] | null;
+};
+
 type DocRow = {
   id: string;
   code: string;
@@ -271,6 +347,49 @@ type EventCheckInRow = {
   note: string | null;
   visibility: CheckInVisibility;
   created_at: string;
+};
+
+type IntentionRow = {
+  member_id: string;
+  kinds: IntentionKind[] | null;
+  note: string | null;
+  updated_at: string;
+};
+
+type IntroductionRow = {
+  id: string;
+  requester_id: string;
+  target_id: string;
+  connector_id: string;
+  note: string | null;
+  status: IntroductionStatus;
+  created_at: string;
+};
+
+type InterestRow = {
+  id: string;
+  from_id: string;
+  to_id: string;
+  kind: InterestKind;
+  created_at: string;
+};
+
+type RelationshipRow = {
+  id: string;
+  member_id: string;
+  related_member_id: string;
+  label: string;
+  visibility: RelationshipVisibility;
+  created_at: string;
+};
+
+type PrivacySettingsRow = {
+  id: string;
+  device_only_messages: boolean | null;
+  local_media_vault: boolean | null;
+  metadata_stripping: boolean | null;
+  p2p_ready: boolean | null;
+  relay_plan: string | null;
 };
 
 type InviteRow = {
@@ -410,6 +529,26 @@ const seedState: CommunityState = {
       aftercarePrompt: "Recolher sinais de desconforto e propostas de melhoria.",
     },
   ],
+  eventRooms: [
+    {
+      id: "room_e1_logistica",
+      eventId: "e_1",
+      name: "Logística café",
+      purpose: "combinar chegada, anfitriã/o e dúvidas de última hora",
+      expiresAt: "2026-06-23T19:00:00",
+      createdBy: "m_di",
+      memberIds: ["m_di", "m_ana", "m_lia"],
+    },
+    {
+      id: "room_e1_aftercare",
+      eventId: "e_1",
+      name: "Aftercare",
+      purpose: "check-ins e notas depois do encontro",
+      expiresAt: "2026-06-25T12:00:00",
+      createdBy: "m_di",
+      memberIds: ["m_di", "m_ana", "m_lia"],
+    },
+  ],
   docs: [
     {
       id: "d_1",
@@ -470,6 +609,84 @@ const seedState: CommunityState = {
       createdAt: "2026-06-23T11:00:00",
     },
   ],
+  intentions: [
+    {
+      memberId: "m_di",
+      kinds: ["amizades", "eventos", "só intro"],
+      note: "Disponível para apresentar pessoas e apoiar novas entradas.",
+      updatedAt: "2026-06-18T10:00:00",
+    },
+    {
+      memberId: "m_ana",
+      kinds: ["amizades", "dates", "eventos"],
+      note: "Aberta a conhecer devagar, especialmente em eventos.",
+      updatedAt: "2026-06-18T10:10:00",
+    },
+    {
+      memberId: "m_miguel",
+      kinds: ["amizades", "só intro"],
+      note: "Prefere que novas conversas venham com contexto.",
+      updatedAt: "2026-06-18T10:20:00",
+    },
+    {
+      memberId: "m_lia",
+      kinds: ["amizades", "eventos"],
+      note: "Procura companhia para eventos e conversas em grupo.",
+      updatedAt: "2026-06-18T10:30:00",
+    },
+  ],
+  introductions: [
+    {
+      id: "intro_1",
+      requesterId: "m_lia",
+      targetId: "m_miguel",
+      connectorId: "m_di",
+      note: "Gostava de falar sobre acordos de eventos pequenos.",
+      status: "pedido",
+      createdAt: "2026-06-18T11:15:00",
+    },
+  ],
+  interests: [
+    {
+      id: "interest_1",
+      fromId: "m_ana",
+      toId: "m_lia",
+      kind: "evento",
+      createdAt: "2026-06-18T11:00:00",
+    },
+    {
+      id: "interest_2",
+      fromId: "m_lia",
+      toId: "m_ana",
+      kind: "evento",
+      createdAt: "2026-06-18T11:05:00",
+    },
+  ],
+  relationships: [
+    {
+      id: "rel_1",
+      memberId: "m_di",
+      relatedMemberId: "m_ana",
+      label: "parceria de organização",
+      visibility: "comunidade",
+      createdAt: "2026-06-18T10:40:00",
+    },
+    {
+      id: "rel_2",
+      memberId: "m_ana",
+      relatedMemberId: "m_lia",
+      label: "padrinha",
+      visibility: "comunidade",
+      createdAt: "2026-06-18T10:45:00",
+    },
+  ],
+  privacySettings: {
+    deviceOnlyMessages: false,
+    localMediaVault: true,
+    metadataStripping: true,
+    p2pReady: false,
+    relayPlan: "Servidor apenas como ponte temporária; media íntima deve migrar para envio direto entre dispositivos.",
+  },
   messages: [
     {
       id: "msg_1",
@@ -513,9 +730,15 @@ function App() {
       groupMembersResult,
       eventsResult,
       attendeesResult,
+      eventRoomsResult,
       docsResult,
       decisionsResult,
       checkInsResult,
+      intentionsResult,
+      introductionsResult,
+      interestsResult,
+      relationshipsResult,
+      privacyResult,
       messagesResult,
       invitesResult,
     ] = await Promise.all([
@@ -524,9 +747,15 @@ function App() {
       supabase.from("group_members").select("*"),
       supabase.from("events").select("*").order("starts_at", { ascending: true }),
       supabase.from("event_attendees").select("*"),
+      supabase.from("event_rooms").select("*").order("expires_at", { ascending: true }),
       supabase.from("docs").select("*").order("updated_at", { ascending: false }),
       supabase.from("decisions").select("*").order("created_at", { ascending: false }),
       supabase.from("event_checkins").select("*").order("created_at", { ascending: false }),
+      supabase.from("member_intentions").select("*").order("updated_at", { ascending: false }),
+      supabase.from("warm_introductions").select("*").order("created_at", { ascending: false }),
+      supabase.from("mutual_interests").select("*").order("created_at", { ascending: false }),
+      supabase.from("relationship_links").select("*").order("created_at", { ascending: false }),
+      supabase.from("privacy_settings").select("*").eq("id", "main").maybeSingle(),
       supabase.from("messages").select("*").order("created_at", { ascending: true }).limit(200),
       supabase.from("invite_codes").select("*").order("created_at", { ascending: false }),
     ]);
@@ -537,9 +766,15 @@ function App() {
       groupMembersResult.error,
       eventsResult.error,
       attendeesResult.error,
+      eventRoomsResult.error,
       docsResult.error,
       decisionsResult.error,
       checkInsResult.error,
+      intentionsResult.error,
+      introductionsResult.error,
+      interestsResult.error,
+      relationshipsResult.error,
+      privacyResult.error,
       messagesResult.error,
       invitesResult.error,
     ].find(Boolean);
@@ -604,6 +839,16 @@ function App() {
       aftercarePrompt: row.aftercare_prompt ?? "",
     }));
 
+    const eventRooms = ((eventRoomsResult.data ?? []) as EventRoomRow[]).map((row) => ({
+      id: row.id,
+      eventId: row.event_id,
+      name: row.name,
+      purpose: row.purpose,
+      expiresAt: row.expires_at,
+      createdBy: row.created_by,
+      memberIds: row.member_ids ?? [],
+    }));
+
     const docs = ((docsResult.data ?? []) as DocRow[]).map((row) => ({
       id: row.id,
       code: row.code,
@@ -635,6 +880,49 @@ function App() {
       visibility: row.visibility,
       createdAt: row.created_at,
     }));
+
+    const intentions = ((intentionsResult.data ?? []) as IntentionRow[]).map((row) => ({
+      memberId: row.member_id,
+      kinds: row.kinds ?? [],
+      note: row.note ?? "",
+      updatedAt: row.updated_at,
+    }));
+
+    const introductions = ((introductionsResult.data ?? []) as IntroductionRow[]).map((row) => ({
+      id: row.id,
+      requesterId: row.requester_id,
+      targetId: row.target_id,
+      connectorId: row.connector_id,
+      note: row.note ?? "",
+      status: row.status,
+      createdAt: row.created_at,
+    }));
+
+    const interests = ((interestsResult.data ?? []) as InterestRow[]).map((row) => ({
+      id: row.id,
+      fromId: row.from_id,
+      toId: row.to_id,
+      kind: row.kind,
+      createdAt: row.created_at,
+    }));
+
+    const relationships = ((relationshipsResult.data ?? []) as RelationshipRow[]).map((row) => ({
+      id: row.id,
+      memberId: row.member_id,
+      relatedMemberId: row.related_member_id,
+      label: row.label,
+      visibility: row.visibility,
+      createdAt: row.created_at,
+    }));
+
+    const privacyRow = privacyResult.data as PrivacySettingsRow | null;
+    const privacySettings: PrivacySettings = {
+      deviceOnlyMessages: privacyRow?.device_only_messages ?? seedState.privacySettings.deviceOnlyMessages,
+      localMediaVault: privacyRow?.local_media_vault ?? seedState.privacySettings.localMediaVault,
+      metadataStripping: privacyRow?.metadata_stripping ?? seedState.privacySettings.metadataStripping,
+      p2pReady: privacyRow?.p2p_ready ?? seedState.privacySettings.p2pReady,
+      relayPlan: privacyRow?.relay_plan ?? seedState.privacySettings.relayPlan,
+    };
 
     const messages = await Promise.all(
       ((messagesResult.data ?? []) as MessageRow[]).map(async (row) => {
@@ -680,7 +968,21 @@ function App() {
       createdAt: row.created_at,
     }));
 
-    setState({ members, groups, events, docs, decisions, eventCheckIns, messages });
+    setState({
+      members,
+      groups,
+      events,
+      eventRooms,
+      docs,
+      decisions,
+      eventCheckIns,
+      intentions,
+      introductions,
+      interests,
+      relationships,
+      privacySettings,
+      messages,
+    });
     setInviteCodes(invites);
     setSyncStatus("connected");
     setSyncMessage("");
@@ -1185,6 +1487,8 @@ function App() {
     updateState((current) => ({
       ...current,
       events: current.events.filter((candidate) => candidate.id !== eventId),
+      eventRooms: current.eventRooms.filter((candidate) => candidate.eventId !== eventId),
+      eventCheckIns: current.eventCheckIns.filter((candidate) => candidate.eventId !== eventId),
     }));
     showNotice("Evento eliminado.");
   }
@@ -1526,6 +1830,311 @@ function App() {
     return true;
   }
 
+  async function updateIntention(input: { kinds: IntentionKind[]; note: string }) {
+    const intention: MemberIntention = {
+      memberId: currentMember.id,
+      kinds: input.kinds,
+      note: input.note.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("member_intentions").upsert({
+        member_id: profile.id,
+        kinds: input.kinds,
+        note: intention.note,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Intenções atualizadas.");
+      return true;
+    }
+
+    updateState((current) => ({
+      ...current,
+      intentions: [
+        intention,
+        ...current.intentions.filter((candidate) => candidate.memberId !== currentMember.id),
+      ],
+    }));
+    showNotice("Intenções atualizadas.");
+    return true;
+  }
+
+  async function requestIntroduction(input: { targetId: string; connectorId: string; note: string }) {
+    if (!input.targetId || !input.connectorId || input.targetId === currentMember.id) return false;
+    const introduction: WarmIntroduction = {
+      id: crypto.randomUUID(),
+      requesterId: currentMember.id,
+      targetId: input.targetId,
+      connectorId: input.connectorId,
+      note: input.note.trim(),
+      status: "pedido",
+      createdAt: new Date().toISOString(),
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("warm_introductions").insert({
+        id: introduction.id,
+        requester_id: profile.id,
+        target_id: input.targetId,
+        connector_id: input.connectorId,
+        note: introduction.note,
+        status: introduction.status,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Pedido de apresentação criado.");
+      return true;
+    }
+
+    updateState((current) => ({ ...current, introductions: [introduction, ...current.introductions] }));
+    showNotice("Pedido de apresentação criado.");
+    return true;
+  }
+
+  async function updateIntroductionStatus(introductionId: string, status: IntroductionStatus) {
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("warm_introductions").update({ status }).eq("id", introductionId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Apresentação atualizada.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      introductions: current.introductions.map((introduction) =>
+        introduction.id === introductionId ? { ...introduction, status } : introduction,
+      ),
+    }));
+    showNotice("Apresentação atualizada.");
+  }
+
+  async function toggleInterest(input: { targetId: string; kind: InterestKind }) {
+    if (!input.targetId || input.targetId === currentMember.id) return;
+    const existing = state.interests.find(
+      (interest) =>
+        interest.fromId === currentMember.id &&
+        interest.toId === input.targetId &&
+        interest.kind === input.kind,
+    );
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = existing
+        ? await supabase.from("mutual_interests").delete().eq("id", existing.id)
+        : await supabase.from("mutual_interests").insert({
+            id: crypto.randomUUID(),
+            from_id: profile.id,
+            to_id: input.targetId,
+            kind: input.kind,
+          });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice(existing ? "Interesse removido." : "Interesse guardado.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      interests: existing
+        ? current.interests.filter((interest) => interest.id !== existing.id)
+        : [
+            {
+              id: crypto.randomUUID(),
+              fromId: currentMember.id,
+              toId: input.targetId,
+              kind: input.kind,
+              createdAt: new Date().toISOString(),
+            },
+            ...current.interests,
+          ],
+    }));
+    showNotice(existing ? "Interesse removido." : "Interesse guardado.");
+  }
+
+  async function addRelationship(input: {
+    relatedMemberId: string;
+    label: string;
+    visibility: RelationshipVisibility;
+  }) {
+    if (!input.relatedMemberId || input.relatedMemberId === currentMember.id || !input.label.trim()) return false;
+    const relationship: RelationshipLink = {
+      id: crypto.randomUUID(),
+      memberId: currentMember.id,
+      relatedMemberId: input.relatedMemberId,
+      label: input.label.trim(),
+      visibility: input.visibility,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("relationship_links").insert({
+        id: relationship.id,
+        member_id: profile.id,
+        related_member_id: input.relatedMemberId,
+        label: relationship.label,
+        visibility: input.visibility,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Ligação adicionada.");
+      return true;
+    }
+
+    updateState((current) => ({ ...current, relationships: [relationship, ...current.relationships] }));
+    showNotice("Ligação adicionada.");
+    return true;
+  }
+
+  async function deleteRelationship(relationshipId: string) {
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("relationship_links").delete().eq("id", relationshipId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Ligação removida.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      relationships: current.relationships.filter((relationship) => relationship.id !== relationshipId),
+    }));
+    showNotice("Ligação removida.");
+  }
+
+  async function addEventRoom(input: {
+    eventId: string;
+    name: string;
+    purpose: string;
+    expiresAt: string;
+    memberIds: string[];
+  }) {
+    if (!input.eventId || !input.name.trim() || !input.expiresAt) return false;
+    const room: EventRoom = {
+      id: crypto.randomUUID(),
+      eventId: input.eventId,
+      name: input.name.trim(),
+      purpose: input.purpose.trim(),
+      expiresAt: new Date(input.expiresAt).toISOString(),
+      createdBy: currentMember.id,
+      memberIds: input.memberIds.length ? input.memberIds : [currentMember.id],
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("event_rooms").insert({
+        id: room.id,
+        event_id: input.eventId,
+        name: room.name,
+        purpose: room.purpose,
+        expires_at: room.expiresAt,
+        created_by: profile.id,
+        member_ids: room.memberIds,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Sala temporária criada.");
+      return true;
+    }
+
+    updateState((current) => ({ ...current, eventRooms: [room, ...current.eventRooms] }));
+    showNotice("Sala temporária criada.");
+    return true;
+  }
+
+  async function deleteEventRoom(roomId: string) {
+    const room = state.eventRooms.find((candidate) => candidate.id === roomId);
+    if (!room) return;
+    const canDelete = currentMember.role === "admin" || room.createdBy === currentMember.id;
+    if (!canDelete) {
+      showNotice("Só admins ou quem criou a sala podem eliminar.");
+      return;
+    }
+
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("event_rooms").delete().eq("id", roomId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Sala temporária eliminada.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      eventRooms: current.eventRooms.filter((candidate) => candidate.id !== roomId),
+    }));
+    showNotice("Sala temporária eliminada.");
+  }
+
+  async function updatePrivacySettings(input: PrivacySettings) {
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("privacy_settings").upsert({
+        id: "main",
+        device_only_messages: input.deviceOnlyMessages,
+        local_media_vault: input.localMediaVault,
+        metadata_stripping: input.metadataStripping,
+        p2p_ready: input.p2pReady,
+        relay_plan: input.relayPlan.trim(),
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Privacidade atualizada.");
+      return true;
+    }
+
+    updateState((current) => ({
+      ...current,
+      privacySettings: { ...input, relayPlan: input.relayPlan.trim() },
+    }));
+    showNotice("Privacidade atualizada.");
+    return true;
+  }
+
   async function addGroup(input: {
     name: string;
     focus: string;
@@ -1722,6 +2331,7 @@ function App() {
           <NavButton id="chat" active={activeNav} setActive={setActiveNav} icon={<MessageCircle />} label="Ao vivo" />
           <NavButton id="eventos" active={activeNav} setActive={setActiveNav} icon={<CalendarDays />} label="Eventos" />
           <NavButton id="docs" active={activeNav} setActive={setActiveNav} icon={<BookOpenText />} label="Memória" />
+          <NavButton id="conexoes" active={activeNav} setActive={setActiveNav} icon={<HeartHandshake />} label="Conexões" />
           <NavButton id="grupos" active={activeNav} setActive={setActiveNav} icon={<Users />} label="Grupos" />
           <NavButton id="entradas" active={activeNav} setActive={setActiveNav} icon={<HandHeart />} label="Entradas" />
         </nav>
@@ -1823,12 +2433,15 @@ function App() {
         {activeNav === "eventos" && (
           <EventsView
             events={upcomingEvents}
+            eventRooms={state.eventRooms}
             eventCheckIns={state.eventCheckIns}
             groups={state.groups}
             currentMember={currentMember}
             memberById={memberById}
             groupById={groupById}
             addEvent={addEvent}
+            addEventRoom={addEventRoom}
+            deleteEventRoom={deleteEventRoom}
             addEventCheckIn={addEventCheckIn}
             deleteEvent={deleteEvent}
             toggleRsvp={toggleRsvp}
@@ -1853,6 +2466,26 @@ function App() {
             deleteDoc={deleteDoc}
             copyText={copyText}
             showNotice={showNotice}
+          />
+        )}
+
+        {activeNav === "conexoes" && (
+          <ConnectionsView
+            members={state.members}
+            currentMember={currentMember}
+            memberById={memberById}
+            intentions={state.intentions}
+            introductions={state.introductions}
+            interests={state.interests}
+            relationships={state.relationships}
+            privacySettings={state.privacySettings}
+            updateIntention={updateIntention}
+            requestIntroduction={requestIntroduction}
+            updateIntroductionStatus={updateIntroductionStatus}
+            toggleInterest={toggleInterest}
+            addRelationship={addRelationship}
+            deleteRelationship={deleteRelationship}
+            updatePrivacySettings={updatePrivacySettings}
           />
         )}
 
@@ -2581,17 +3214,21 @@ function ChatView({
 
 function EventsView({
   events,
+  eventRooms,
   eventCheckIns,
   groups,
   currentMember,
   memberById,
   groupById,
   addEvent,
+  addEventRoom,
+  deleteEventRoom,
   addEventCheckIn,
   deleteEvent,
   toggleRsvp,
 }: {
   events: EventItem[];
+  eventRooms: EventRoom[];
   eventCheckIns: EventCheckIn[];
   groups: Group[];
   currentMember: Member;
@@ -2608,6 +3245,14 @@ function EventsView({
     boundaryNotes: string;
     aftercarePrompt: string;
   }) => Promise<boolean>;
+  addEventRoom: (input: {
+    eventId: string;
+    name: string;
+    purpose: string;
+    expiresAt: string;
+    memberIds: string[];
+  }) => Promise<boolean>;
+  deleteEventRoom: (roomId: string) => Promise<void>;
   addEventCheckIn: (input: {
     eventId: string;
     mood: CheckInMood;
@@ -2634,6 +3279,12 @@ function EventsView({
     note: "",
     visibility: "admins" as CheckInVisibility,
   });
+  const [roomForm, setRoomForm] = useState({
+    eventId: "",
+    name: "",
+    purpose: "",
+    expiresAt: "2026-06-26T12:00",
+  });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2650,6 +3301,19 @@ function EventsView({
     const created = await addEventCheckIn(checkInForm);
     if (created) {
       setCheckInForm((current) => ({ ...current, note: "" }));
+    }
+  }
+
+  async function handleRoomSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const selectedEvent = events.find((candidate) => candidate.id === roomForm.eventId);
+    if (!selectedEvent) return;
+    const created = await addEventRoom({
+      ...roomForm,
+      memberIds: [...new Set([currentMember.id, ...selectedEvent.attendeeIds])],
+    });
+    if (created) {
+      setRoomForm((current) => ({ ...current, name: "", purpose: "" }));
     }
   }
 
@@ -2811,11 +3475,62 @@ function EventsView({
           </div>
         </form>
 
+        <form className="surface checkin-panel" onSubmit={handleRoomSubmit}>
+          <SurfaceHeader icon={<MessageCircle />} title="Salas temporárias" />
+          <div className="field-pair">
+            <div className="field-group">
+              <label htmlFor="room-event">Evento</label>
+              <select
+                id="room-event"
+                value={roomForm.eventId}
+                onChange={(event) => setRoomForm({ ...roomForm, eventId: event.target.value })}
+              >
+                <option value="">escolher</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="room-expires">Expira</label>
+              <input
+                id="room-expires"
+                type="datetime-local"
+                value={roomForm.expiresAt}
+                onChange={(event) => setRoomForm({ ...roomForm, expiresAt: event.target.value })}
+              />
+            </div>
+          </div>
+          <div className="field-group">
+            <label htmlFor="room-name">Nome</label>
+            <input
+              id="room-name"
+              value={roomForm.name}
+              onChange={(event) => setRoomForm({ ...roomForm, name: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="room-purpose">Propósito</label>
+            <input
+              id="room-purpose"
+              value={roomForm.purpose}
+              onChange={(event) => setRoomForm({ ...roomForm, purpose: event.target.value })}
+            />
+          </div>
+          <button className="primary-button" type="submit">
+            <Plus size={17} aria-hidden />
+            Criar sala
+          </button>
+        </form>
+
         {events.map((event) => {
           const attending = event.attendeeIds.includes(currentMember.id);
           const canDelete = currentMember.role === "admin" || event.createdBy === currentMember.id;
           const checkIns = eventCheckIns.filter((checkIn) => checkIn.eventId === event.id);
           const moodCounts = countMoods(checkIns);
+          const rooms = eventRooms.filter((room) => room.eventId === event.id);
           return (
             <article className="surface event-card" key={event.id}>
               <time dateTime={event.startsAt}>
@@ -2846,6 +3561,27 @@ function EventsView({
                     <span>{moodCounts.bem} bem</span>
                     <span>{moodCounts.misto} misto</span>
                     <span>{moodCounts.atenção} atenção</span>
+                  </div>
+                )}
+                {rooms.length > 0 && (
+                  <div className="event-room-list">
+                    {rooms.map((room) => (
+                      <div className="event-room-chip" key={room.id}>
+                        <MessageCircle size={14} aria-hidden />
+                        <span>{room.name}</span>
+                        <small>{formatExpiry(room.expiresAt)}</small>
+                        {(currentMember.role === "admin" || room.createdBy === currentMember.id) && (
+                          <button
+                            className="icon-only compact danger"
+                            type="button"
+                            onClick={() => deleteEventRoom(room.id)}
+                            title="Eliminar sala"
+                          >
+                            <X size={13} aria-hidden />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -3170,6 +3906,421 @@ function DocsView({
         </button>
         </form>
       </div>
+    </section>
+  );
+}
+
+function ConnectionsView({
+  members,
+  currentMember,
+  memberById,
+  intentions,
+  introductions,
+  interests,
+  relationships,
+  privacySettings,
+  updateIntention,
+  requestIntroduction,
+  updateIntroductionStatus,
+  toggleInterest,
+  addRelationship,
+  deleteRelationship,
+  updatePrivacySettings,
+}: {
+  members: Member[];
+  currentMember: Member;
+  memberById: Map<string, Member>;
+  intentions: MemberIntention[];
+  introductions: WarmIntroduction[];
+  interests: MutualInterest[];
+  relationships: RelationshipLink[];
+  privacySettings: PrivacySettings;
+  updateIntention: (input: { kinds: IntentionKind[]; note: string }) => Promise<boolean>;
+  requestIntroduction: (input: { targetId: string; connectorId: string; note: string }) => Promise<boolean>;
+  updateIntroductionStatus: (introductionId: string, status: IntroductionStatus) => Promise<void>;
+  toggleInterest: (input: { targetId: string; kind: InterestKind }) => Promise<void>;
+  addRelationship: (input: {
+    relatedMemberId: string;
+    label: string;
+    visibility: RelationshipVisibility;
+  }) => Promise<boolean>;
+  deleteRelationship: (relationshipId: string) => Promise<void>;
+  updatePrivacySettings: (input: PrivacySettings) => Promise<boolean>;
+}) {
+  const otherMembers = members.filter((member) => member.id !== currentMember.id);
+  const ownIntention = intentions.find((intention) => intention.memberId === currentMember.id);
+  const [intentionForm, setIntentionForm] = useState({
+    kinds: ownIntention?.kinds ?? (["amizades", "eventos"] as IntentionKind[]),
+    note: ownIntention?.note ?? "",
+  });
+  const [introForm, setIntroForm] = useState({
+    targetId: otherMembers[0]?.id ?? "",
+    connectorId: currentMember.sponsorId ?? otherMembers[0]?.id ?? currentMember.id,
+    note: "",
+  });
+  const [relationshipForm, setRelationshipForm] = useState({
+    relatedMemberId: otherMembers[0]?.id ?? "",
+    label: "",
+    visibility: "comunidade" as RelationshipVisibility,
+  });
+  const [privacyForm, setPrivacyForm] = useState(privacySettings);
+
+  useEffect(() => {
+    setIntentionForm({
+      kinds: ownIntention?.kinds ?? ["amizades", "eventos"],
+      note: ownIntention?.note ?? "",
+    });
+  }, [ownIntention?.memberId, ownIntention?.note, ownIntention?.kinds.join("|")]);
+
+  useEffect(() => {
+    setPrivacyForm(privacySettings);
+  }, [privacySettings]);
+
+  function toggleIntention(kind: IntentionKind) {
+    setIntentionForm((current) => ({
+      ...current,
+      kinds: current.kinds.includes(kind)
+        ? current.kinds.filter((candidate) => candidate !== kind)
+        : [...current.kinds, kind],
+    }));
+  }
+
+  async function handleIntentionSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    updateIntention(intentionForm);
+  }
+
+  async function handleIntroSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const created = await requestIntroduction(introForm);
+    if (created) setIntroForm((current) => ({ ...current, note: "" }));
+  }
+
+  async function handleRelationshipSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const created = await addRelationship(relationshipForm);
+    if (created) setRelationshipForm((current) => ({ ...current, label: "" }));
+  }
+
+  async function handlePrivacySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    updatePrivacySettings(privacyForm);
+  }
+
+  const mutualMatches = interests.filter(
+    (interest) =>
+      interest.fromId === currentMember.id &&
+      interests.some(
+        (candidate) =>
+          candidate.fromId === interest.toId &&
+          candidate.toId === currentMember.id &&
+          candidate.kind === interest.kind,
+      ),
+  );
+
+  const visibleRelationships = relationships.filter(
+    (relationship) =>
+      relationship.visibility === "comunidade" ||
+      relationship.memberId === currentMember.id ||
+      relationship.relatedMemberId === currentMember.id ||
+      currentMember.role === "admin",
+  );
+
+  return (
+    <section className="connections-layout">
+      <form className="surface form-panel" onSubmit={handleIntentionSubmit}>
+        <SurfaceHeader icon={<Heart />} title="Intenções" />
+        <div className="intention-grid">
+          {(["amizades", "dates", "flirt", "eventos", "indisponível", "só intro"] as IntentionKind[]).map((kind) => (
+            <button
+              key={kind}
+              className={intentionForm.kinds.includes(kind) ? "secondary-button selected" : "secondary-button"}
+              type="button"
+              onClick={() => toggleIntention(kind)}
+            >
+              {kind}
+            </button>
+          ))}
+        </div>
+        <div className="field-group">
+          <label htmlFor="intention-note">Nota</label>
+          <textarea
+            id="intention-note"
+            rows={3}
+            value={intentionForm.note}
+            onChange={(event) => setIntentionForm({ ...intentionForm, note: event.target.value })}
+          />
+        </div>
+        <button className="primary-button" type="submit">
+          <Check size={17} aria-hidden />
+          Atualizar
+        </button>
+
+        <div className="connection-card-list">
+          {members.map((member) => {
+            const intention = intentions.find((candidate) => candidate.memberId === member.id);
+            return (
+              <article className="connection-card" key={member.id}>
+                <header>
+                  <div className="avatar">{initials(member.name)}</div>
+                  <div>
+                    <h3>{member.name}</h3>
+                    <p>{intention?.note || "sem nota"}</p>
+                  </div>
+                </header>
+                <footer>
+                  {(intention?.kinds.length ? intention.kinds : ["por preencher"]).map((kind) => (
+                    <span key={kind}>{kind}</span>
+                  ))}
+                </footer>
+              </article>
+            );
+          })}
+        </div>
+      </form>
+
+      <section className="connection-stack">
+        <form className="surface form-panel" onSubmit={handleIntroSubmit}>
+          <SurfaceHeader icon={<UserPlus />} title="Apresentação quente" />
+          <div className="field-pair">
+            <div className="field-group">
+              <label htmlFor="intro-target">Pessoa</label>
+              <select
+                id="intro-target"
+                value={introForm.targetId}
+                onChange={(event) => setIntroForm({ ...introForm, targetId: event.target.value })}
+              >
+                {otherMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="intro-connector">Ponte</label>
+              <select
+                id="intro-connector"
+                value={introForm.connectorId}
+                onChange={(event) => setIntroForm({ ...introForm, connectorId: event.target.value })}
+              >
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="field-group">
+            <label htmlFor="intro-note">Contexto</label>
+            <textarea
+              id="intro-note"
+              rows={3}
+              value={introForm.note}
+              onChange={(event) => setIntroForm({ ...introForm, note: event.target.value })}
+            />
+          </div>
+          <button className="primary-button" type="submit">
+            <UserPlus size={17} aria-hidden />
+            Pedir intro
+          </button>
+        </form>
+
+        <section className="surface">
+          <SurfaceHeader icon={<HeartHandshake />} title="Pedidos" />
+          <div className="connection-card-list">
+            {introductions.map((introduction) => {
+              const requester = memberById.get(introduction.requesterId);
+              const target = memberById.get(introduction.targetId);
+              const connector = memberById.get(introduction.connectorId);
+              const canRespond =
+                [introduction.targetId, introduction.connectorId, introduction.requesterId].includes(currentMember.id) ||
+                currentMember.role === "admin";
+              return (
+                <article className="connection-card" key={introduction.id}>
+                  <header>
+                    <UserPlus size={18} aria-hidden />
+                    <div>
+                      <h3>{requester?.name} → {target?.name}</h3>
+                      <p>Ponte: {connector?.name}</p>
+                    </div>
+                    <span className="small-pill">{introduction.status}</span>
+                  </header>
+                  {introduction.note && <p>{introduction.note}</p>}
+                  {canRespond && (
+                    <div className="mini-actions">
+                      {(["aceite", "recusado", "aberto"] as IntroductionStatus[]).map((status) => (
+                        <button
+                          key={status}
+                          className={introduction.status === status ? "secondary-button selected" : "secondary-button"}
+                          type="button"
+                          onClick={() => updateIntroductionStatus(introduction.id, status)}
+                        >
+                          {status}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </section>
+
+      <section className="connection-stack">
+        <section className="surface">
+          <SurfaceHeader icon={<Heart />} title="Interesse mútuo" />
+          <div className="interest-grid">
+            {otherMembers.map((member) => (
+              <article className="connection-card" key={member.id}>
+                <header>
+                  <div className="avatar">{initials(member.name)}</div>
+                  <div>
+                    <h3>{member.name}</h3>
+                    <p>{member.relationshipContext || member.pronouns}</p>
+                  </div>
+                </header>
+                <div className="mini-actions">
+                  {(["amizade", "date", "flirt", "evento"] as InterestKind[]).map((kind) => {
+                    const active = interests.some(
+                      (interest) =>
+                        interest.fromId === currentMember.id &&
+                        interest.toId === member.id &&
+                        interest.kind === kind,
+                    );
+                    const mutual = active && interests.some(
+                      (interest) =>
+                        interest.fromId === member.id &&
+                        interest.toId === currentMember.id &&
+                        interest.kind === kind,
+                    );
+                    return (
+                      <button
+                        key={kind}
+                        className={active ? "secondary-button selected" : "secondary-button"}
+                        type="button"
+                        onClick={() => toggleInterest({ targetId: member.id, kind })}
+                      >
+                        {mutual ? `${kind} ✓` : kind}
+                      </button>
+                    );
+                  })}
+                </div>
+              </article>
+            ))}
+          </div>
+          {mutualMatches.length > 0 && (
+            <div className="match-strip">
+              {mutualMatches.map((match) => (
+                <span key={match.id}>
+                  {memberById.get(match.toId)?.name} · {match.kind}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <form className="surface form-panel" onSubmit={handleRelationshipSubmit}>
+          <SurfaceHeader icon={<GitBranch />} title="Constelação" />
+          <div className="field-pair">
+            <div className="field-group">
+              <label htmlFor="rel-member">Pessoa</label>
+              <select
+                id="rel-member"
+                value={relationshipForm.relatedMemberId}
+                onChange={(event) => setRelationshipForm({ ...relationshipForm, relatedMemberId: event.target.value })}
+              >
+                {otherMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor="rel-visibility">Visibilidade</label>
+              <select
+                id="rel-visibility"
+                value={relationshipForm.visibility}
+                onChange={(event) =>
+                  setRelationshipForm({ ...relationshipForm, visibility: event.target.value as RelationshipVisibility })
+                }
+              >
+                <option value="privado">privado</option>
+                <option value="conexões">conexões</option>
+                <option value="comunidade">comunidade</option>
+              </select>
+            </div>
+          </div>
+          <div className="field-group">
+            <label htmlFor="rel-label">Ligação</label>
+            <input
+              id="rel-label"
+              value={relationshipForm.label}
+              onChange={(event) => setRelationshipForm({ ...relationshipForm, label: event.target.value })}
+            />
+          </div>
+          <button className="primary-button" type="submit">
+            <GitBranch size={17} aria-hidden />
+            Adicionar
+          </button>
+          <div className="relationship-list">
+            {visibleRelationships.map((relationship) => (
+              <article className="relationship-link" key={relationship.id}>
+                <span>{memberById.get(relationship.memberId)?.name}</span>
+                <strong>{relationship.label}</strong>
+                <span>{memberById.get(relationship.relatedMemberId)?.name}</span>
+                {(relationship.memberId === currentMember.id || currentMember.role === "admin") && (
+                  <button
+                    className="icon-only compact danger"
+                    type="button"
+                    onClick={() => deleteRelationship(relationship.id)}
+                    title="Remover ligação"
+                  >
+                    <X size={13} aria-hidden />
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        </form>
+      </section>
+
+      <form className="surface form-panel privacy-panel" onSubmit={handlePrivacySubmit}>
+        <SurfaceHeader icon={<RadioTower />} title="Fundação P2P" />
+        <div className="privacy-toggle-list">
+          {[
+            ["deviceOnlyMessages", "Mensagens só no dispositivo"],
+            ["localMediaVault", "Cofre local de media"],
+            ["metadataStripping", "Remover metadados"],
+            ["p2pReady", "Preparado para P2P"],
+          ].map(([key, label]) => (
+            <label className="privacy-toggle" key={key}>
+              <input
+                type="checkbox"
+                checked={Boolean(privacyForm[key as keyof PrivacySettings])}
+                onChange={(event) => setPrivacyForm({ ...privacyForm, [key]: event.target.checked })}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="field-group">
+          <label htmlFor="relay-plan">Plano</label>
+          <textarea
+            id="relay-plan"
+            rows={4}
+            value={privacyForm.relayPlan}
+            onChange={(event) => setPrivacyForm({ ...privacyForm, relayPlan: event.target.value })}
+          />
+        </div>
+        <button className="primary-button" type="submit">
+          <LockKeyhole size={17} aria-hidden />
+          Guardar fundação
+        </button>
+      </form>
     </section>
   );
 }
@@ -3716,8 +4867,14 @@ function normalizeCommunityState(state: CommunityState): CommunityState {
       boundaryNotes: event.boundaryNotes ?? "",
       aftercarePrompt: event.aftercarePrompt ?? "",
     })),
+    eventRooms: Array.isArray(state.eventRooms) ? state.eventRooms : [],
     decisions: Array.isArray(state.decisions) ? state.decisions : [],
     eventCheckIns: Array.isArray(state.eventCheckIns) ? state.eventCheckIns : [],
+    intentions: Array.isArray(state.intentions) ? state.intentions : [],
+    introductions: Array.isArray(state.introductions) ? state.introductions : [],
+    interests: Array.isArray(state.interests) ? state.interests : [],
+    relationships: Array.isArray(state.relationships) ? state.relationships : [],
+    privacySettings: state.privacySettings ?? seedState.privacySettings,
     messages: state.messages.map((message) => ({
       ...message,
       imageConsentRequired: message.imageConsentRequired ?? false,
@@ -3779,6 +4936,7 @@ function navTitle(nav: NavKey) {
     chat: "Chat ao vivo",
     eventos: "Eventos",
     docs: "Memória e decisões",
+    conexoes: "Conexões e confiança",
     grupos: "Comunidade e subgrupos",
     entradas: "Apadrinhamento",
   };

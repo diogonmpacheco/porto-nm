@@ -1095,6 +1095,32 @@ button:disabled {
   border-color: #b9d9cf;
 }
 
+.event-room-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.event-room-chip {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  gap: 7px;
+  align-items: center;
+  min-height: 32px;
+  padding: 5px 7px;
+  color: #2d383b;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.event-room-chip small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .attendee-row,
 .invitee-row,
 .doc-row footer {
@@ -1424,6 +1450,126 @@ button:disabled {
   font-weight: 650;
 }
 
+.connections-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1fr) 300px;
+  gap: 10px;
+  align-items: start;
+}
+
+.connection-stack,
+.connection-card-list,
+.interest-grid,
+.relationship-list,
+.privacy-toggle-list {
+  display: grid;
+  gap: 8px;
+}
+
+.intention-grid,
+.mini-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.connection-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.connection-card header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.connection-card h3,
+.connection-card p {
+  margin: 0;
+}
+
+.connection-card p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-card footer,
+.match-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.connection-card footer span,
+.match-strip span {
+  min-height: 23px;
+  padding: 3px 7px;
+  color: #2d383b;
+  background: #eef1ee;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.match-strip {
+  margin-top: 8px;
+}
+
+.match-strip span {
+  color: #124c45;
+  background: #edf8f3;
+  border: 1px solid #b9d9cf;
+}
+
+.relationship-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 8px;
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.relationship-link strong {
+  color: var(--teal);
+  white-space: nowrap;
+}
+
+.relationship-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.privacy-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 9px;
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.privacy-toggle input {
+  width: 15px;
+  min-height: 15px;
+  accent-color: var(--teal);
+}
+
 @media (max-width: 1050px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1471,6 +1617,7 @@ button:disabled {
   .split-layout,
   .two-column,
   .docs-layout,
+  .connections-layout,
   .groups-layout,
   .entrances-layout {
     grid-template-columns: 1fr;
@@ -1511,7 +1658,7 @@ button:disabled {
 
   .nav-list {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 0;
     height: 100%;
     overflow: visible;
@@ -1527,7 +1674,7 @@ button:disabled {
     padding: 5px 0 7px;
     border-radius: 0;
     color: #737c79;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 750;
     text-align: center;
   }
@@ -1608,7 +1755,8 @@ button:disabled {
   .chat-layout,
   .composer-row,
   .event-card,
-  .event-item {
+  .event-item,
+  .relationship-link {
     grid-template-columns: 1fr;
   }
 
@@ -2143,9 +2291,14 @@ button:disabled {
   .two-column,
   .chat-layout,
   .docs-layout,
+  .connections-layout,
   .groups-layout,
   .entrances-layout {
     gap: 10px;
+  }
+
+  .connections-layout {
+    grid-template-columns: 240px minmax(0, 1fr) minmax(0, 1fr) 260px;
   }
 
   .surface {
@@ -2413,6 +2566,16 @@ button:disabled {
     gap: 6px;
   }
 
+  .event-room-chip {
+    min-height: 28px;
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .event-room-chip small {
+    font-size: 10px;
+  }
+
   .attendee-row,
   .invitee-row,
   .doc-row footer {
@@ -2557,5 +2720,33 @@ button:disabled {
     gap: 7px;
     margin-bottom: 10px;
     padding: 9px;
+  }
+
+  .connection-card {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .connection-card p {
+    font-size: 11px;
+  }
+
+  .connection-card footer span,
+  .match-strip span {
+    min-height: 20px;
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .privacy-toggle {
+    min-height: 28px;
+    padding: 0 7px;
+    font-size: 11px;
+  }
+
+  .relationship-link {
+    min-height: 28px;
+    padding: 5px 7px;
+    font-size: 11px;
   }
 }
