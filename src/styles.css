@@ -1806,3 +1806,585 @@ button:disabled {
     font-size: 20px;
   }
 }
+
+@media (min-width: 1051px) {
+  .app-shell {
+    grid-template-columns: 172px minmax(0, 1fr);
+  }
+
+  .sidebar {
+    gap: 8px;
+    padding: 10px 7px;
+  }
+
+  .brand-block {
+    gap: 7px;
+    min-height: 32px;
+  }
+
+  .brand-mark {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+  }
+
+  .brand-mark svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .brand-block h1 {
+    font-size: 16px;
+  }
+
+  .brand-block p {
+    font-size: 10px;
+  }
+
+  .nav-list {
+    gap: 3px;
+  }
+
+  .nav-button {
+    gap: 6px;
+    min-height: 29px;
+    padding: 0 7px;
+    font-size: 12px;
+  }
+
+  .nav-button svg,
+  .ghost-button svg,
+  .primary-button svg,
+  .secondary-button svg,
+  .text-button svg,
+  .status-action svg,
+  .surface-header svg,
+  .citation-chip svg,
+  .presence-row svg,
+  .icon-only svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .actor-box {
+    gap: 5px;
+  }
+
+  .actor-box label {
+    font-size: 10px;
+  }
+
+  .account-box strong {
+    font-size: 12px;
+  }
+
+  .account-box span {
+    font-size: 10px;
+  }
+
+  select,
+  input,
+  textarea {
+    min-height: 32px;
+    padding: 5px 7px;
+    border-radius: 7px;
+    font-size: 12px;
+  }
+
+  .ghost-button,
+  .primary-button,
+  .secondary-button {
+    min-height: 30px;
+    padding: 0 9px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .workspace {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .topbar {
+    gap: 12px;
+  }
+
+  .eyebrow {
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+
+  .topbar h2 {
+    font-size: 21px;
+  }
+
+  .status-strip {
+    gap: 6px;
+  }
+
+  .status-strip span,
+  .status-action,
+  .small-pill,
+  .doc-code {
+    gap: 5px;
+    min-height: 22px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  .dashboard-grid,
+  .event-board,
+  .group-management,
+  .doc-list,
+  .lineage-list,
+  .item-list,
+  .sponsor-chain {
+    gap: 8px;
+  }
+
+  .metric-row {
+    gap: 8px;
+  }
+
+  .metric-card {
+    grid-template-columns: 24px 1fr;
+    min-height: 50px;
+    padding: 7px 8px;
+    gap: 1px 8px;
+  }
+
+  .metric-card div {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+  }
+
+  .metric-card svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .metric-card span {
+    font-size: 10px;
+  }
+
+  .metric-card strong {
+    font-size: 16px;
+  }
+
+  .split-layout,
+  .two-column,
+  .chat-layout,
+  .docs-layout,
+  .groups-layout,
+  .entrances-layout {
+    gap: 10px;
+  }
+
+  .surface {
+    padding: 8px;
+  }
+
+  .surface-header {
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .surface-header div {
+    gap: 7px;
+  }
+
+  .text-button {
+    min-height: 26px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+
+  .event-item,
+  .sponsor-node,
+  .lineage-row,
+  .event-card,
+  .doc-row,
+  .group-manager header {
+    gap: 9px;
+  }
+
+  .event-item {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+  }
+
+  .event-card {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+  }
+
+  .event-item time,
+  .event-card time {
+    width: 36px;
+    height: 36px;
+    border-radius: 7px;
+  }
+
+  .event-item time strong,
+  .event-card time strong {
+    font-size: 15px;
+  }
+
+  .event-item time span,
+  .event-card time span {
+    font-size: 9px;
+  }
+
+  .event-item h3,
+  .sponsor-node h3,
+  .group-tile h3,
+  .doc-row h3,
+  .lineage-row h3,
+  .event-card h3,
+  .group-manager h3,
+  .chat-header h3 {
+    font-size: 12px;
+  }
+
+  .event-item p,
+  .sponsor-node p,
+  .group-tile p,
+  .doc-row p,
+  .lineage-row p,
+  .event-card p,
+  .group-manager p,
+  .chat-header p {
+    margin-top: 3px;
+    font-size: 10px;
+  }
+
+  .sponsor-node,
+  .lineage-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    min-height: 44px;
+    padding: 7px;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    font-size: 10px;
+  }
+
+  .group-tile {
+    min-height: 78px;
+    padding: 8px;
+  }
+
+  .group-tile p {
+    min-height: 26px;
+  }
+
+  .group-tile footer,
+  .doc-row footer,
+  .event-card footer {
+    gap: 6px;
+    margin-top: 7px;
+    font-size: 10px;
+  }
+
+  .chat-layout {
+    grid-template-columns: 200px minmax(0, 1fr);
+    min-height: calc(100vh - 72px);
+  }
+
+  .field-group {
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .field-group label,
+  .check-fieldset legend {
+    font-size: 11px;
+  }
+
+  .member-presence {
+    gap: 5px;
+  }
+
+  .presence-row {
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 7px;
+    border-radius: 7px;
+    font-size: 11px;
+  }
+
+  .presence-row small {
+    font-size: 10px;
+  }
+
+  .chat-header {
+    gap: 10px;
+    padding: 7px 8px;
+  }
+
+  .chat-title-block {
+    gap: 8px;
+  }
+
+  .chat-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    font-size: 10px;
+  }
+
+  .chat-title-block p {
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .message-list {
+    gap: 6px;
+    min-height: 260px;
+    max-height: calc(100vh - 178px);
+    padding: 7px;
+  }
+
+  .message {
+    width: min(560px, 86%);
+    padding: 7px 8px;
+    border-radius: 7px;
+  }
+
+  .message header,
+  .message footer {
+    gap: 8px;
+    font-size: 10px;
+  }
+
+  .message p {
+    margin: 5px 0;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .citation-chip {
+    gap: 5px;
+    min-height: 24px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .message-actions {
+    gap: 5px;
+  }
+
+  .composer {
+    gap: 5px;
+    padding: 7px;
+  }
+
+  .composer-row {
+    gap: 6px;
+  }
+
+  .mention-menu {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 5px;
+    padding: 5px;
+  }
+
+  .mention-menu button {
+    min-height: 34px;
+    padding: 5px 7px;
+  }
+
+  .mention-menu span {
+    font-size: 12px;
+  }
+
+  .mention-menu small {
+    font-size: 10px;
+  }
+
+  .attachment-preview {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 7px;
+    padding: 5px;
+  }
+
+  .attachment-preview img {
+    width: 42px;
+    height: 42px;
+  }
+
+  .view-once-toggle {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .message-image {
+    gap: 5px;
+    margin: 7px 0 5px;
+  }
+
+  .message-image img {
+    max-height: 280px;
+  }
+
+  .image-placeholder,
+  .image-reveal {
+    min-height: 68px;
+    margin: 7px 0 5px;
+    padding: 10px;
+  }
+
+  .event-card-main header {
+    gap: 6px;
+  }
+
+  .event-actions {
+    gap: 6px;
+  }
+
+  .attendee-row,
+  .invitee-row,
+  .doc-row footer {
+    gap: 5px;
+    margin-top: 8px;
+  }
+
+  .attendee-row span,
+  .invitee-row span,
+  .doc-row footer span {
+    min-height: 20px;
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .form-panel h3 {
+    margin-bottom: 10px;
+  }
+
+  .field-pair {
+    gap: 8px;
+  }
+
+  .form-note {
+    font-size: 11px;
+  }
+
+  .copy-field {
+    gap: 6px;
+  }
+
+  .copy-button {
+    padding: 0 9px;
+  }
+
+  .invite-code-list {
+    gap: 7px;
+    margin-top: 12px;
+  }
+
+  .invite-code-row {
+    gap: 2px 8px;
+    padding: 8px;
+  }
+
+  .invite-code-actions {
+    gap: 6px;
+  }
+
+  .invite-code-row span,
+  .invite-code-row small {
+    font-size: 10px;
+  }
+
+  .docs-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+
+  .doc-search-panel {
+    gap: 10px;
+  }
+
+  .search-box svg {
+    top: 9px;
+    left: 9px;
+    width: 15px;
+    height: 15px;
+  }
+
+  .search-box input {
+    padding-left: 32px;
+  }
+
+  .doc-row {
+    padding: 8px;
+  }
+
+  .doc-code {
+    min-height: 22px;
+    margin-bottom: 7px;
+  }
+
+  .icon-only {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+  }
+
+  .icon-only.compact {
+    width: 23px;
+    height: 23px;
+  }
+
+  .doc-actions {
+    gap: 6px;
+  }
+
+  .groups-layout,
+  .entrances-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .group-manager header {
+    grid-template-columns: 11px minmax(0, 1fr) auto;
+  }
+
+  .group-dot {
+    width: 10px;
+    height: 32px;
+  }
+
+  .member-check-grid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 7px;
+    margin-top: 10px;
+  }
+
+  .member-check,
+  .check-fieldset label {
+    gap: 7px;
+    min-height: 28px;
+    padding: 0 7px;
+    font-size: 11px;
+  }
+
+  .member-check input,
+  .check-fieldset input {
+    width: 14px;
+    min-height: 14px;
+  }
+
+  .group-manager footer {
+    margin-top: 10px;
+    font-size: 11px;
+  }
+
+  .check-fieldset {
+    gap: 7px;
+    margin-bottom: 10px;
+    padding: 9px;
+  }
+}
