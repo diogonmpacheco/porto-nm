@@ -19,7 +19,8 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "guardia";
@@ -85,6 +86,13 @@ type CommunityState = {
 };
 
 const storeKey = "porto-nm-community-v1";
+const communityStateId = "porto_nm";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabase =
+  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+
+type SyncStatus = "local" | "loading" | "connected" | "saving" | "error";
 
 const seedState: CommunityState = {
   members: [
@@ -222,15 +230,144 @@ const seedState: CommunityState = {
 
 function App() {
   const [state, setState] = useState<CommunityState>(() => loadState());
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(supabase ? "loading" : "local");
+  const [syncMessage, setSyncMessage] = useState("");
+  const [remoteReady, setRemoteReady] = useState(!supabase);
   const [activeNav, setActiveNav] = useState<NavKey>("hoje");
   const [currentMemberId, setCurrentMemberId] = useState("m_di");
   const [activeGroupId, setActiveGroupId] = useState("g_geral");
   const [selectedCitation, setSelectedCitation] = useState("DOC-001");
   const [search, setSearch] = useState("");
+  const lastSavedState = useRef(JSON.stringify(loadState()));
+
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+    let mounted = true;
+
+    async function loadSharedState() {
+      setSyncStatus("loading");
+      const { data, error } = await client
+        .from("community_state")
+        .select("state")
+        .eq("id", communityStateId)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        setRemoteReady(true);
+        return;
+      }
+
+      if (data?.state && isCommunityState(data.state)) {
+        const sharedState = data.state;
+        lastSavedState.current = JSON.stringify(sharedState);
+        setState(sharedState);
+      } else {
+        const { error: seedError } = await client.from("community_state").upsert({
+          id: communityStateId,
+          state: seedState,
+          updated_at: new Date().toISOString(),
+        });
+
+        if (!mounted) return;
+
+        if (seedError) {
+          setSyncStatus("error");
+          setSyncMessage(seedError.message);
+          setRemoteReady(true);
+          return;
+        }
+
+        lastSavedState.current = JSON.stringify(seedState);
+        setState(seedState);
+      }
+
+      setSyncStatus("connected");
+      setSyncMessage("");
+      setRemoteReady(true);
+    }
+
+    loadSharedState();
+
+    const channel = client
+      .channel("community-state-sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "community_state",
+          filter: `id=eq.${communityStateId}`,
+        },
+        (payload) => {
+          const incoming = payload.new && "state" in payload.new ? payload.new.state : null;
+          if (!isCommunityState(incoming)) return;
+          lastSavedState.current = JSON.stringify(incoming);
+          setState(incoming);
+          setSyncStatus("connected");
+          setSyncMessage("");
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setSyncStatus("connected");
+          setSyncMessage("");
+        }
+      });
+
+    return () => {
+      mounted = false;
+      client.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(storeKey, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    if (!supabase || !remoteReady) return;
+    const client = supabase;
+    const serialized = JSON.stringify(state);
+    if (serialized === lastSavedState.current) return;
+
+    const saveHandle = window.setTimeout(async () => {
+      setSyncStatus("saving");
+      const { error } = await client.from("community_state").upsert({
+        id: communityStateId,
+        state,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+
+      lastSavedState.current = serialized;
+      setSyncStatus("connected");
+      setSyncMessage("");
+    }, 250);
+
+    return () => window.clearTimeout(saveHandle);
+  }, [remoteReady, state]);
+
+  useEffect(() => {
+    if (!state.members.some((member) => member.id === currentMemberId)) {
+      setCurrentMemberId(state.members[0]?.id ?? "");
+    }
+    if (!state.groups.some((group) => group.id === activeGroupId)) {
+      setActiveGroupId(state.groups[0]?.id ?? "");
+    }
+    if (selectedCitation && !state.docs.some((doc) => doc.code === selectedCitation)) {
+      setSelectedCitation(state.docs[0]?.code ?? "");
+    }
+  }, [activeGroupId, currentMemberId, selectedCitation, state.docs, state.groups, state.members]);
 
   const memberById = useMemo(
     () => new Map(state.members.map((member) => [member.id, member])),
@@ -247,6 +384,7 @@ function App() {
 
   const activeGroup = groupById.get(activeGroupId) ?? state.groups[0];
   const currentMember = memberById.get(currentMemberId) ?? state.members[0];
+  const syncCopy = getSyncCopy(syncStatus);
   const onlineMembers = state.members.filter((member) => member.status === "online");
   const upcomingEvents = [...state.events].sort(
     (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
@@ -464,6 +602,10 @@ function App() {
             <h2>{navTitle(activeNav)}</h2>
           </div>
           <div className="status-strip" aria-label="Estado da comunidade">
+            <span className={`sync-pill ${syncStatus}`} title={syncMessage || syncCopy.description}>
+              <ShieldCheck size={16} aria-hidden />
+              {syncCopy.label}
+            </span>
             <span>
               <Wifi size={16} aria-hidden />
               {onlineMembers.length} online
@@ -1302,10 +1444,49 @@ function loadState(): CommunityState {
   const stored = localStorage.getItem(storeKey);
   if (!stored) return seedState;
   try {
-    return JSON.parse(stored) as CommunityState;
+    const parsed = JSON.parse(stored);
+    return isCommunityState(parsed) ? parsed : seedState;
   } catch {
     return seedState;
   }
+}
+
+function isCommunityState(value: unknown): value is CommunityState {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CommunityState>;
+  return (
+    Array.isArray(candidate.members) &&
+    Array.isArray(candidate.groups) &&
+    Array.isArray(candidate.events) &&
+    Array.isArray(candidate.docs) &&
+    Array.isArray(candidate.messages)
+  );
+}
+
+function getSyncCopy(status: SyncStatus) {
+  const labels: Record<SyncStatus, { label: string; description: string }> = {
+    local: {
+      label: "local",
+      description: "Sem Supabase configurado; os dados ficam neste browser.",
+    },
+    loading: {
+      label: "a ligar",
+      description: "A carregar estado partilhado.",
+    },
+    connected: {
+      label: "partilhado",
+      description: "Sincronizado com Supabase.",
+    },
+    saving: {
+      label: "a guardar",
+      description: "A guardar alterações partilhadas.",
+    },
+    error: {
+      label: "erro sync",
+      description: "A sincronização encontrou um erro.",
+    },
+  };
+  return labels[status];
 }
 
 function navTitle(nav: NavKey) {

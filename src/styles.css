@@ -234,6 +234,31 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.status-strip .sync-pill.local {
+  color: #5d4a10;
+  background: #fff7d5;
+  border-color: #ead996;
+}
+
+.status-strip .sync-pill.connected {
+  color: #13574f;
+  background: #edf6f2;
+  border-color: #b8d8ce;
+}
+
+.status-strip .sync-pill.saving,
+.status-strip .sync-pill.loading {
+  color: #4b4d86;
+  background: #eef0ff;
+  border-color: #c8cbf2;
+}
+
+.status-strip .sync-pill.error {
+  color: #8b2d25;
+  background: #fff0ed;
+  border-color: #f0b5ad;
+}
+
 .dashboard-grid,
 .event-board,
 .group-management,
