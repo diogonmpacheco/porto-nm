@@ -4,7 +4,7 @@ create table if not exists public.profiles (
   pronouns text not null default 'por definir',
   joined_at date not null default current_date,
   sponsor_id uuid references public.profiles(id) on delete set null,
-  role text not null default 'nova pessoa' check (role in ('nova pessoa', 'membro', 'guardia')),
+  role text not null default 'nova pessoa' check (role in ('nova pessoa', 'membro', 'admin')),
   status text not null default 'online' check (status in ('online', 'offline'))
 );
 
@@ -66,7 +66,7 @@ create table if not exists public.messages (
 create table if not exists public.invite_codes (
   code text primary key,
   sponsor_id uuid references public.profiles(id) on delete set null,
-  role text not null default 'nova pessoa' check (role in ('nova pessoa', 'membro', 'guardia')),
+  role text not null default 'nova pessoa' check (role in ('nova pessoa', 'membro', 'admin')),
   max_uses integer not null default 1 check (max_uses > 0),
   uses integer not null default 0 check (uses >= 0),
   expires_at timestamptz,
@@ -84,7 +84,7 @@ insert into public.docs (id, code, title, summary, owner_id, updated_at, tags)
 values
   ('d_1', 'DOC-001', 'Acordos de consentimento', 'Qualquer encontro da comunidade assume consentimento explícito, reversível, informado, entusiasmado e específico.', null, '2026-06-12'::timestamptz, array['consentimento', 'eventos']),
   ('d_2', 'DOC-002', 'Entradas por apadrinhamento', 'Cada nova entrada fica vinculada a quem convidou, com responsabilidade inicial de acolhimento e orientação.', null, '2026-06-14'::timestamptz, array['entradas', 'confiança']),
-  ('d_3', 'DOC-003', 'Gestão de subgrupos', 'Subgrupos têm guardiã/o definido, visibilidade própria e uma lista de membros revista periodicamente.', null, '2026-06-16'::timestamptz, array['grupos', 'moderação'])
+  ('d_3', 'DOC-003', 'Gestão de subgrupos', 'Subgrupos têm admin definido, visibilidade própria e uma lista de membros revista periodicamente.', null, '2026-06-16'::timestamptz, array['grupos', 'moderação'])
 on conflict (id) do nothing;
 
 create or replace function public.current_profile_role()
@@ -104,7 +104,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.current_profile_role() in ('nova pessoa', 'membro', 'guardia'), false)
+  select coalesce(public.current_profile_role() in ('nova pessoa', 'membro', 'admin'), false)
 $$;
 
 create or replace function public.is_guardian()
@@ -114,7 +114,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.current_profile_role() = 'guardia', false)
+  select coalesce(public.current_profile_role() = 'admin', false)
 $$;
 
 create or replace function public.community_has_founder()
@@ -143,7 +143,7 @@ begin
   end if;
 
   insert into public.profiles (id, name, pronouns, sponsor_id, role, status)
-  values (auth.uid(), nullif(trim(display_name), ''), coalesce(nullif(trim(display_pronouns), ''), 'por definir'), null, 'guardia', 'online');
+  values (auth.uid(), nullif(trim(display_name), ''), coalesce(nullif(trim(display_pronouns), ''), 'por definir'), null, 'admin', 'online');
 
   insert into public.group_members (group_id, member_id)
   select id, auth.uid()
@@ -346,7 +346,7 @@ for insert to authenticated
 with check (
   sponsor_id = auth.uid()
   and public.is_member()
-  and (role <> 'guardia' or public.is_guardian())
+  and (role <> 'admin' or public.is_guardian())
 );
 
 grant usage on schema public to anon, authenticated;

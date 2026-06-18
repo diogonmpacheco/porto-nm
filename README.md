@@ -31,7 +31,7 @@ The current hosted backend uses these main tables:
 - `docs`
 - `messages`
 
-First use: create an account in the live app. If there are no profiles yet, the app shows the founder setup screen and creates the first `guardia`. After that, entries happen through invite codes, and each accepted invite links the new profile to its sponsor.
+First use: create an account in the live app. If there are no profiles yet, the app shows the founder setup screen and creates the first `admin`. After that, entries happen through invite codes, and each accepted invite links the new profile to its sponsor.
 
 ### Supabase CLI path
 
@@ -85,12 +85,12 @@ Expected UX:
 - Create a draft decision from a chat/document/group discussion.
 - Record the ata and proposal text.
 - Collect votes from eligible members.
-- Finalize the decision so it becomes immutable except by guardiãs.
+- Finalize the decision so it becomes immutable except by admins.
 - Cite finalized decisions in chat and docs using stable codes like `DEC-001`.
 
 Permissions:
 
 - Members can read finalized decisions.
 - Members can vote while a decision is open.
-- Guardians can create, reopen, correct, or archive decisions.
+- Admins can create, reopen, correct, or archive decisions.
 - Subgroup decisions should only be visible to members of that subgroup when the group is private/secret.

@@ -23,7 +23,7 @@ import { createClient, Session } from "@supabase/supabase-js";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type MemberStatus = "online" | "offline";
-type MemberRole = "nova pessoa" | "membro" | "guardia";
+type MemberRole = "nova pessoa" | "membro" | "admin";
 type GroupPrivacy = "aberto" | "convite" | "secreto";
 type NavKey = "hoje" | "chat" | "eventos" | "docs" | "grupos" | "entradas";
 
@@ -180,7 +180,7 @@ const seedState: CommunityState = {
       pronouns: "elu/delu",
       joinedAt: "2026-03-02",
       sponsorId: null,
-      role: "guardia",
+      role: "admin",
       groupIds: ["g_geral", "g_eventos", "g_cuidados"],
       status: "online",
     },
@@ -287,7 +287,7 @@ const seedState: CommunityState = {
       code: "DOC-003",
       title: "Gestão de subgrupos",
       summary:
-        "Subgrupos têm guardiã/o definido, visibilidade própria e uma lista de membros revista periodicamente.",
+        "Subgrupos têm admin definido, visibilidade própria e uma lista de membros revista periodicamente.",
       ownerId: "m_miguel",
       updatedAt: "2026-06-16",
       tags: ["grupos", "moderação"],
@@ -643,7 +643,7 @@ function App() {
 
   async function toggleMemberStatus(memberId: string) {
     if (usingBackend && supabase && profile) {
-      if (memberId !== profile.id && profile.role !== "guardia") return;
+      if (memberId !== profile.id && profile.role !== "admin") return;
       const target = state.members.find((member) => member.id === memberId);
       if (!target) return;
       setSyncStatus("saving");
@@ -878,13 +878,13 @@ function App() {
     const groupId = `g_${crypto.randomUUID()}`;
     const groupColor = palette[state.groups.length % palette.length];
 
-    if (usingBackend && profile?.role !== "guardia") {
+    if (usingBackend && profile?.role !== "admin") {
       setSyncStatus("error");
-      setSyncMessage("Só guardiãs/os podem criar subgrupos.");
+      setSyncMessage("Só admins podem criar subgrupos.");
       return false;
     }
 
-    if (usingBackend && supabase && profile?.role === "guardia") {
+    if (usingBackend && supabase && profile?.role === "admin") {
       setSyncStatus("saving");
       const { error } = await supabase.from("groups").insert({
         id: groupId,
@@ -921,13 +921,13 @@ function App() {
   }
 
   async function toggleGroupMember(groupId: string, memberId: string) {
-    if (usingBackend && profile?.role !== "guardia") {
+    if (usingBackend && profile?.role !== "admin") {
       setSyncStatus("error");
-      setSyncMessage("Só guardiãs/os podem gerir membros de subgrupos.");
+      setSyncMessage("Só admins podem gerir membros de subgrupos.");
       return;
     }
 
-    if (usingBackend && supabase && profile?.role === "guardia") {
+    if (usingBackend && supabase && profile?.role === "admin") {
       const member = state.members.find((candidate) => candidate.id === memberId);
       if (!member) return;
       const hasGroup = member.groupIds.includes(groupId);
@@ -1353,7 +1353,7 @@ function OnboardingView({
             <HandHeart size={22} aria-hidden />
           </div>
           <div>
-            <h1>{mode === "founder" ? "Primeira guardiã" : "Convite"}</h1>
+            <h1>{mode === "founder" ? "Primeiro admin" : "Convite"}</h1>
             <p>{mode === "founder" ? "Criar a raiz da comunidade" : "Vincular entrada a quem convidou"}</p>
           </div>
         </div>
@@ -1380,7 +1380,7 @@ function OnboardingView({
           {syncMessage && <p className="form-alert">{syncMessage}</p>}
           <button className="primary-button" type="submit" disabled={submitting}>
             <HandHeart size={17} aria-hidden />
-            {submitting ? "A guardar" : mode === "founder" ? "Criar guardiã" : "Entrar com convite"}
+            {submitting ? "A guardar" : mode === "founder" ? "Criar admin" : "Entrar com convite"}
           </button>
           <button className="secondary-button full-width" type="button" onClick={onSignOut}>
             Sair
@@ -1763,7 +1763,7 @@ function EventsView({
                 onClick={() => toggleRsvp(event.id)}
               >
                 <Check size={16} aria-hidden />
-                {attending ? "Confirmade" : "Confirmar"}
+                {attending ? "Presente" : "Confirmar"}
               </button>
             </article>
           );
@@ -1943,7 +1943,7 @@ function GroupsView({
             </select>
           </div>
           <div className="field-group">
-            <label htmlFor="group-steward">Guardião/a</label>
+            <label htmlFor="group-steward">Admin</label>
             <select id="group-steward" value={form.stewardId} onChange={(event) => setForm({ ...form, stewardId: event.target.value })}>
               {members.map((member) => (
                 <option key={member.id} value={member.id}>
@@ -1985,7 +1985,7 @@ function GroupsView({
                 );
               })}
             </div>
-            <footer>Guardião/a: {memberById.get(group.stewardId)?.name}</footer>
+            <footer>Admin: {memberById.get(group.stewardId)?.name}</footer>
           </article>
         ))}
       </section>
@@ -2075,7 +2075,7 @@ function EntrancesView({
               >
                 <option value="nova pessoa">nova pessoa</option>
                 <option value="membro">membro</option>
-                {currentMember.role === "guardia" && <option value="guardia">guardia</option>}
+                {currentMember.role === "admin" && <option value="admin">admin</option>}
               </select>
             </div>
             <div className="field-group">
