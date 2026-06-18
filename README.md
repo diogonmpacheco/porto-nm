@@ -1,26 +1,178 @@
 # Porto NM
 
-Prototype community app for Porto NM.
+Aplicação privada para uma comunidade não-monogâmica em Porto, pensada para substituir parte do caos de grupos de WhatsApp por espaços com memória, consentimento, eventos, apresentações cuidadas e gestão de subgrupos.
 
-## Local development
+Estado actual: protótipo funcional com frontend em React/Vite, backend em Supabase, autenticação, dados em tempo real, regras de acesso e deploy em Vercel.
+
+## Demonstração
+
+URL de produção:
+
+<https://porto-nm-beige.vercel.app>
+
+Contas de teste para demonstração privada:
+
+- `admin` / `PortoNM`
+- `tester` / `PortoNM`
+
+A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteúdo. A conta `tester` é útil para testar a experiência de uma pessoa normal da comunidade.
+
+## O que já existe
+
+### Entrada privada
+
+- Login por Supabase Auth.
+- Acesso simplificado por aliases de teste (`admin` e `tester`).
+- Primeiro perfil da comunidade fica como `admin`.
+- Entrada por convite.
+- Cada convite fica ligado à pessoa que convidou.
+- A área **Apadrinhamento** mostra quem convidou quem e quantas pessoas cada membro trouxe.
+
+### Painel Hoje
+
+- Resumo rápido de membros, eventos, decisões e novas entradas.
+- Próximos eventos.
+- Lista de apadrinhamento.
+- Visão rápida dos subgrupos.
+
+### Chat ao vivo
+
+- Conversas por sala/subgrupo.
+- Presença online/offline por membro.
+- Entrega simulada apenas a equipamentos/pessoas presentes no momento.
+- Citação de documentos e decisões usando `@`.
+- Sugestões de citações enquanto se escreve.
+- Cópia rápida de códigos de documentos/decisões.
+- Interface mobile simplificada, mais próxima de uma app de mensagens.
+
+### Imagens privadas
+
+- Upload de imagens no chat.
+- Opção de imagem normal.
+- Opção **ver uma vez**.
+- Envelope privado com aviso de consentimento antes de abrir.
+- Expiração configurável.
+- Registo local de quem abriu imagens protegidas.
+- Storage privado em Supabase para imagens de mensagens.
+
+### Memória e decisões
+
+- Documentos/conclusões com título, texto, etiquetas e código citável.
+- Decisões com ata curta, decisão final, estado e votos.
+- Votos: `sim`, `não`, `abstenção`, `bloqueio`.
+- Decisões e documentos podem ser citados no chat com `@`.
+- Admins ou autores podem apagar conteúdos criados.
+- Feedback visual quando uma acção é guardada/copiada/apagada.
+
+### Eventos
+
+- Criação de eventos com data, local, capacidade e subgrupo.
+- Confirmação de presença.
+- Política de fotos por evento.
+- Notas de limites/acordos do espaço.
+- Campo de aftercare.
+- Check-in pós-evento com humor, nota e visibilidade.
+- Admins ou criadores podem apagar eventos.
+- Salas temporárias associadas a eventos, com data de expiração.
+
+### Conexões e confiança
+
+- Área **Conexões e confiança**.
+- Quadro de intenções: amizades, dates, flirt, eventos, indisponível ou só com apresentação.
+- Notas pessoais de disponibilidade.
+- Pedidos de **apresentação quente**, com pessoa alvo, pessoa ponte, nota e estado.
+- Interesse mútuo por pessoa e tipo de interesse.
+- Indicação de match quando o interesse é recíproco.
+- Constelação de relações/ligações, com visibilidade privada, por conexões ou comunidade.
+- Fundação P2P: opções de mensagens só no dispositivo, cofre local de media, remoção de metadados e prontidão para P2P.
+
+### Comunidade e subgrupos
+
+- Subgrupos com foco, privacidade e pessoa responsável.
+- Privacidade: aberto, convite ou secreto.
+- Admins podem criar subgrupos.
+- Admins podem gerir membros de subgrupos.
+- Cada grupo tem cor e sala própria.
+
+### Backend e segurança
+
+- Supabase Auth.
+- Tabelas normalizadas.
+- Row Level Security activa.
+- Políticas para leitura/escrita por membros, autores, participantes e admins.
+- Realtime activado nas tabelas principais.
+- Storage privado para imagens.
+- Migrations versionadas em `supabase/migrations/`.
+
+## Dados de demonstração
+
+A aplicação inclui dados fictícios para apresentação:
+
+- Inês Faria
+- João Matos
+- Carolina Vale
+- Rita Lopes
+- Nuno Seabra
+
+Também existem exemplos de:
+
+- convites e apadrinhamento;
+- eventos com participantes;
+- salas temporárias;
+- check-ins pós-evento;
+- documentos e decisões citáveis;
+- pedidos de apresentação quente;
+- interesses mútuos;
+- constelações de relação;
+- mensagens de chat com citações.
+
+Estes dados são marcados com IDs/códigos `demo_`, `DEMO-`, `DOC-DEMO-` ou `DEC-DEMO-`.
+
+Para remover a demonstração mais tarde, usar o script:
+
+```bash
+supabase/demo_cleanup.sql
+```
+
+Esse script deve ser executado manualmente no SQL Editor do Supabase ou via `psql`.
+
+## Como correr localmente
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Shared collaboration mode
+Sem Supabase configurado, a app usa dados locais no browser. Com Supabase configurado, usa autenticação e dados partilhados.
 
-The app works without a backend by using browser storage. The deployed version uses Supabase Auth, invite-only onboarding, row-level security, and normalized community tables.
-
-Then set these variables locally in `.env.local` and in Vercel:
+Variáveis necessárias em `.env.local` e na Vercel:
 
 ```bash
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-public-anon-key
 ```
 
-The current hosted backend uses these main tables:
+## Deploy e base de dados
+
+Ligar Supabase ao projecto:
+
+```bash
+npm run supabase:link -- --project-ref YOUR_PROJECT_REF
+```
+
+Aplicar migrations:
+
+```bash
+npm run supabase:push
+```
+
+Deploy em produção:
+
+```bash
+npx vercel --prod --yes
+```
+
+## Tabelas principais
 
 - `profiles`
 - `invite_codes`
@@ -28,69 +180,54 @@ The current hosted backend uses these main tables:
 - `group_members`
 - `events`
 - `event_attendees`
+- `event_rooms`
+- `event_checkins`
 - `docs`
+- `decisions`
 - `messages`
+- `member_intentions`
+- `warm_introductions`
+- `mutual_interests`
+- `relationship_links`
+- `privacy_settings`
 
-First use: create an account in the live app. If there are no profiles yet, the app shows the founder setup screen and creates the first `admin`. After that, entries happen through invite codes, and each accepted invite links the new profile to its sponsor.
+## O que ainda falta para parecer produto acabado
 
-### Supabase CLI path
+### Prioridade alta
 
-1. Create a Supabase access token:
-   <https://supabase.com/dashboard/account/tokens>
+- Encriptação real ponta-a-ponta no chat e nas imagens.
+- P2P real ou relay mínimo para mensagens/media sensível.
+- Painel de admin para apagar/suspender membros, remover demo data e rever denúncias.
+- Notificações por email/push para convites, apresentações, eventos e decisões abertas.
+- Estados claros de erro/loading em todas as acções.
+- Melhor empty state quando ainda não há dados numa secção.
 
-2. Log in from this project:
+### Prioridade média
 
-```bash
-npx supabase login --token YOUR_SUPABASE_ACCESS_TOKEN
-```
+- Calendário exportável (`.ics`) e integração com Google/Apple Calendar.
+- Fluxo de onboarding com perguntas de consentimento, expectativas e leitura obrigatória de acordos.
+- Pedidos de ajuda/mediação com privacidade forte.
+- Pesquisa global por pessoas, docs, decisões, eventos e mensagens.
+- Filtros na área Conexões por intenção, disponibilidade, grupo e proximidade social.
+- Arquivo de eventos passados com decisões/check-ins associados.
 
-3. Link the hosted project:
+### Extra sauce
 
-```bash
-npm run supabase:link -- --project-ref YOUR_PROJECT_REF
-```
+- Roteiro de acolhimento para novas pessoas: convite, padrinho/madrinha, docs essenciais, primeiro evento e check-in.
+- “Modo apresentação” para mostrar a comunidade sem dados sensíveis.
+- Templates de eventos com acordos pré-preenchidos.
+- Cartões de consentimento mais visuais e fáceis de comparar.
+- Regras de contexto para media íntima: quem pode abrir, até quando, em que sala e com que acordo.
+- Decisões que podem nascer directamente de uma conversa do chat.
 
-4. Push the migrations:
+## Nota de produto
 
-```bash
-npm run supabase:push
-```
+O maior valor diferencial não é “mais um chat”. É a combinação de memória, consentimento e confiança social:
 
-5. Add the public app keys to Vercel:
-
-```bash
-printf "https://YOUR_PROJECT_REF.supabase.co" | npx vercel env add VITE_SUPABASE_URL production
-printf "YOUR_SUPABASE_ANON_KEY" | npx vercel env add VITE_SUPABASE_ANON_KEY production
-npx vercel --prod --yes
-```
-
-The current schema lives in `supabase/migrations/`.
-
-## Feature Backlog
-
-### Decisões
-
-The community needs a dedicated decision archive so settled topics do not disappear inside chat flow. This feature should turn repeated discussions into stable, citeable records.
-
-Core model:
-
-- `decisions`: title, context, final decision text, status, group/subgroup, facilitator, decided_at, created_by.
-- `decision_minutes`: ata text, discussion summary, objections/concerns, links to related docs or chat excerpts.
-- `decision_votes`: decision_id, member_id, vote (`favor`, `contra`, `abstencao`, `bloqueio`), optional comment, voted_at.
-- `decision_links`: related docs, events, groups, and previous decisions.
-
-Expected UX:
-
-- A new **Decisões** section beside Docs.
-- Create a draft decision from a chat/document/group discussion.
-- Record the ata and proposal text.
-- Collect votes from eligible members.
-- Finalize the decision so it becomes immutable except by admins.
-- Cite finalized decisions in chat and docs using stable codes like `DEC-001`.
-
-Permissions:
-
-- Members can read finalized decisions.
-- Members can vote while a decision is open.
-- Admins can create, reopen, correct, or archive decisions.
-- Subgroup decisions should only be visible to members of that subgroup when the group is private/secret.
+- conversas ao vivo;
+- decisões que não se perdem;
+- entradas com apadrinhamento;
+- eventos com aftercare;
+- apresentações com contexto;
+- media privada com consentimento;
+- mapa social sem obrigar toda a gente a expor tudo.
