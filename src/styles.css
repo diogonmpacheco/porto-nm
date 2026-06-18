@@ -865,6 +865,51 @@ button:disabled {
   background: #f6f7f4;
 }
 
+.key-trust-stack {
+  display: grid;
+  gap: 6px;
+  padding: 7px 9px 0;
+  background: #eef1ed;
+}
+
+.key-trust-alert {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 7px;
+  color: #3f4b4e;
+  background: #fffdf4;
+  border: 1px solid #ead996;
+  border-radius: 8px;
+}
+
+.key-trust-alert.danger {
+  color: #6e2b27;
+  background: #fff1ef;
+  border-color: #f1c9c4;
+}
+
+.key-trust-alert strong,
+.key-trust-alert span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key-trust-alert strong {
+  font-size: 11px;
+}
+
+.key-trust-alert span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+}
+
 .message-list {
   display: flex;
   flex: 1;
@@ -1428,6 +1473,44 @@ button:disabled {
   position: relative;
   align-self: end;
   cursor: pointer;
+}
+
+.fingerprint-list {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 7px;
+  background: #f8faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.fingerprint-list strong {
+  color: #3f4b4e;
+  font-size: 11px;
+}
+
+.fingerprint-list span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fingerprint-list.compact {
+  padding: 5px 6px;
+}
+
+.fingerprint-list.compact strong {
+  display: none;
+}
+
+.fingerprint-list span.changed {
+  color: #8b332d;
 }
 
 .events-layout {
@@ -2806,6 +2889,7 @@ button:disabled {
   .chat-layout,
   .composer-row,
   .admin-alert,
+  .key-trust-alert,
   .admin-member-row,
   .admin-content-row,
   .relationship-link {

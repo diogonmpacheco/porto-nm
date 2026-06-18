@@ -40,8 +40,20 @@ import {
   Wifi,
   X,
 } from "lucide-react";
-import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type Session } from "@supabase/supabase-js";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  annotateDeviceKeysWithTrust,
+  canUseDeviceKeyForEncryption,
+  deriveDeviceAesKey,
+  ensureDeviceIdentity,
+  fingerprintPublicKey,
+  getBrowserDeviceLabel,
+  importPublicDeviceKey,
+  trustDeviceKey,
+  type DeviceIdentity,
+  type DeviceKey,
+} from "./crypto/keys";
 
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
@@ -203,29 +215,6 @@ type DirectPeerStatus = {
   roomId: string;
   state: DirectPeerState;
   updatedAt: string;
-};
-
-type DeviceKey = {
-  id: string;
-  memberId: string;
-  deviceLabel: string;
-  publicKey: JsonWebKey;
-  createdAt: string;
-  lastSeenAt: string;
-  revokedAt: string | null;
-};
-
-type StoredDeviceIdentity = {
-  deviceId: string;
-  memberId: string;
-  publicJwk: JsonWebKey;
-  privateJwk: JsonWebKey;
-  createdAt: string;
-};
-
-type DeviceIdentity = StoredDeviceIdentity & {
-  publicKey: CryptoKey;
-  privateKey: CryptoKey;
 };
 
 type MemberIntention = {
@@ -602,7 +591,6 @@ type DirectPeerConnection = {
 };
 
 const storeKey = "porto-nm-community-v1";
-const deviceStorePrefix = "porto_nm_device_identity";
 const p2pConnectionConfig: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -1527,7 +1515,8 @@ function App() {
       relayPlan: privacyRow?.relay_plan ?? seedState.privacySettings.relayPlan,
     };
 
-    const nextDeviceKeys = ((deviceKeysResult.data ?? []) as DeviceKeyRow[]).map(deviceKeyFromRow);
+    const rawDeviceKeys = ((deviceKeysResult.data ?? []) as DeviceKeyRow[]).map(deviceKeyFromRow);
+    const nextDeviceKeys = await annotateDeviceKeysWithTrust(rawDeviceKeys, deviceIdentity);
     setDeviceKeys(nextDeviceKeys);
 
     const messages = await Promise.all(
@@ -2235,6 +2224,7 @@ function App() {
     const activeDeviceKeys = deviceKeys.filter(
       (deviceKey) =>
         deviceKey.id !== deviceIdentity.deviceId &&
+        canUseDeviceKeyForEncryption(deviceKey) &&
         roomMemberIds.has(deviceKey.memberId) &&
         isRecentlySeenDevice(deviceKey),
     );
@@ -2269,6 +2259,20 @@ function App() {
       showNotice(message);
     } catch {
       showNotice("Não foi possível copiar automaticamente.");
+    }
+  }
+
+  async function confirmTrustDevice(deviceId: string) {
+    const deviceKey = deviceKeys.find((candidate) => candidate.id === deviceId);
+    if (!deviceKey) return;
+
+    try {
+      await trustDeviceKey(deviceKey);
+      const nextDeviceKeys = await annotateDeviceKeysWithTrust(deviceKeys, deviceIdentity);
+      setDeviceKeys(nextDeviceKeys);
+      showNotice("Chave deste dispositivo marcada como confiável.");
+    } catch {
+      showNotice("Não consegui actualizar a confiança deste dispositivo.");
     }
   }
 
@@ -2530,9 +2534,15 @@ function App() {
         return false;
       }
 
-      const freshDeviceKeys = ((freshDeviceRows ?? []) as DeviceKeyRow[]).map(deviceKeyFromRow);
+      const rawFreshDeviceKeys = ((freshDeviceRows ?? []) as DeviceKeyRow[]).map(deviceKeyFromRow);
+      const freshDeviceKeys = await annotateDeviceKeysWithTrust(rawFreshDeviceKeys, deviceIdentity);
       const roomMemberIds = new Set(groupMembers.map((member) => member.id));
-      const targetDeviceKeys = freshDeviceKeys.filter((deviceKey) => roomMemberIds.has(deviceKey.memberId));
+      const changedDeviceKeys = freshDeviceKeys.filter(
+        (deviceKey) => roomMemberIds.has(deviceKey.memberId) && deviceKey.trustStatus === "changed",
+      );
+      const targetDeviceKeys = freshDeviceKeys.filter(
+        (deviceKey) => roomMemberIds.has(deviceKey.memberId) && canUseDeviceKeyForEncryption(deviceKey),
+      );
 
       if (!targetDeviceKeys.some((deviceKey) => deviceKey.id === deviceIdentity.deviceId)) {
         targetDeviceKeys.push({
@@ -2543,6 +2553,8 @@ function App() {
           createdAt: deviceIdentity.createdAt,
           lastSeenAt: new Date().toISOString(),
           revokedAt: null,
+          fingerprint: await fingerprintPublicKey(deviceIdentity.publicJwk),
+          trustStatus: "own",
         });
       }
 
@@ -2617,14 +2629,17 @@ function App() {
         imageExpiresAt,
       });
       await fetchBackendData();
+      const skippedCopy = changedDeviceKeys.length
+        ? ` ${changedDeviceKeys.length} dispositivo(s) com chave alterada ficaram fora até confirmação.`
+        : "";
       showNotice(
         hasImage
           ? directCount
-            ? `Imagem cifrada enviada; ${directCount} ligação directa.`
-            : "Imagem cifrada enviada."
+            ? `Imagem cifrada enviada; ${directCount} ligação directa.${skippedCopy}`
+            : `Imagem cifrada enviada.${skippedCopy}`
           : directCount
-            ? `Mensagem cifrada enviada; ${directCount} ligação directa.`
-            : "Mensagem cifrada enviada.",
+            ? `Mensagem cifrada enviada; ${directCount} ligação directa.${skippedCopy}`
+            : `Mensagem cifrada enviada.${skippedCopy}`,
       );
       return true;
     }
@@ -3816,7 +3831,9 @@ function App() {
             markImageOpened={markImageOpened}
             getMessageImageUrl={getMessageImageUrl}
             deviceSecurityStatus={deviceSecurityStatus}
+            deviceKeys={deviceKeys}
             directPeerCount={directPeerCount}
+            confirmTrustDevice={confirmTrustDevice}
             toggleMemberStatus={toggleMemberStatus}
             addGroup={addGroup}
             copyText={copyText}
@@ -3855,6 +3872,7 @@ function App() {
             interests={state.interests}
             relationships={state.relationships}
             privacySettings={state.privacySettings}
+            deviceKeys={deviceKeys}
             updateOwnProfile={updateOwnProfile}
             uploadProfilePhoto={uploadProfilePhoto}
             updateIntention={updateIntention}
@@ -4246,7 +4264,9 @@ function ChatView({
   markImageOpened,
   getMessageImageUrl,
   deviceSecurityStatus,
+  deviceKeys,
   directPeerCount,
+  confirmTrustDevice,
   toggleMemberStatus,
   addGroup,
   copyText,
@@ -4268,7 +4288,9 @@ function ChatView({
   markImageOpened: (messageId: string) => Promise<boolean>;
   getMessageImageUrl: (message: ChatMessage) => Promise<string | null>;
   deviceSecurityStatus: DeviceSecurityStatus;
+  deviceKeys: DeviceKey[];
   directPeerCount: number;
+  confirmTrustDevice: (deviceId: string) => Promise<void>;
   toggleMemberStatus: (id: string) => void;
   addGroup: (input: { name: string; focus: string; privacy: GroupPrivacy; stewardId: string }) => Promise<boolean>;
   copyText: (value: string, message: string) => Promise<void>;
@@ -4299,6 +4321,13 @@ function ChatView({
   });
   const groupMembers = members.filter((member) => member.groupIds.includes(activeGroup.id));
   const onlineCount = groupMembers.filter((member) => member.status === "online").length;
+  const groupMemberIds = new Set(groupMembers.map((member) => member.id));
+  const changedDeviceKeys = deviceKeys.filter(
+    (deviceKey) => groupMemberIds.has(deviceKey.memberId) && deviceKey.trustStatus === "changed",
+  );
+  const newDeviceKeys = deviceKeys.filter(
+    (deviceKey) => groupMemberIds.has(deviceKey.memberId) && deviceKey.trustStatus === "new",
+  );
   const citationTargets = [
     ...decisions.map((decision) => ({
       id: decision.id,
@@ -4613,7 +4642,7 @@ function ChatView({
           <div className="chat-status-pills">
             <span className={`small-pill encryption-pill ${encryptionReady ? "ready" : deviceSecurityStatus}`}>
               <LockKeyhole size={13} aria-hidden />
-              {encryptionReady ? "Privado" : "A preparar"}
+              {encryptionReady ? "Cifrado" : "A preparar"}
             </span>
             {directPeerCount > 0 && (
               <span className="small-pill direct-pill ready">
@@ -4624,6 +4653,38 @@ function ChatView({
             <span className="small-pill chat-count-pill">{visibleMessages.length} visíveis para {currentMember.name}</span>
           </div>
         </header>
+
+        {(changedDeviceKeys.length > 0 || newDeviceKeys.length > 0) && (
+          <div className="key-trust-stack">
+            {changedDeviceKeys.map((deviceKey) => (
+              <article className="key-trust-alert danger" key={deviceKey.id}>
+                <LockKeyhole size={15} aria-hidden />
+                <div>
+                  <strong>A chave deste dispositivo mudou.</strong>
+                  <span>
+                    {memberById.get(deviceKey.memberId)?.name ?? "Pessoa"} · {deviceKey.deviceLabel} ·{" "}
+                    {deviceKey.fingerprint ?? "sem impressão"}
+                  </span>
+                </div>
+                <button className="secondary-button" type="button" onClick={() => confirmTrustDevice(deviceKey.id)}>
+                  Confiar de novo
+                </button>
+              </article>
+            ))}
+            {newDeviceKeys.slice(0, 3).map((deviceKey) => (
+              <article className="key-trust-alert" key={deviceKey.id}>
+                <ShieldCheck size={15} aria-hidden />
+                <div>
+                  <strong>Novo dispositivo visto.</strong>
+                  <span>
+                    {memberById.get(deviceKey.memberId)?.name ?? "Pessoa"} · {deviceKey.deviceLabel} ·{" "}
+                    {deviceKey.fingerprint ?? "sem impressão"}
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
 
         <div className="message-list" aria-live="polite">
           {visibleMessages.map((message) => {
@@ -4797,6 +4858,7 @@ function CommunityHub({
   interests,
   relationships,
   privacySettings,
+  deviceKeys,
   updateOwnProfile,
   uploadProfilePhoto,
   updateIntention,
@@ -4824,6 +4886,7 @@ function CommunityHub({
   interests: MutualInterest[];
   relationships: RelationshipLink[];
   privacySettings: PrivacySettings;
+  deviceKeys: DeviceKey[];
   updateOwnProfile: (input: ProfileUpdateInput) => Promise<boolean>;
   uploadProfilePhoto: (file: File) => Promise<boolean>;
   updateIntention: (input: { kinds: IntentionKind[]; note: string }) => Promise<boolean>;
@@ -4866,6 +4929,7 @@ function CommunityHub({
       {activeTab === "perfil" && (
         <ProfileView
           currentMember={currentMember}
+          deviceKeys={deviceKeys}
           updateOwnProfile={updateOwnProfile}
           uploadProfilePhoto={uploadProfilePhoto}
         />
@@ -4881,6 +4945,7 @@ function CommunityHub({
           interests={interests}
           relationships={relationships}
           privacySettings={privacySettings}
+          deviceKeys={deviceKeys}
           updateIntention={updateIntention}
           requestIntroduction={requestIntroduction}
           updateIntroductionStatus={updateIntroductionStatus}
@@ -5925,7 +5990,7 @@ function PrivateVideoRooms({
       (deviceKey) =>
         selected.has(deviceKey.memberId) &&
         deviceKey.id !== deviceIdentity.deviceId &&
-        !deviceKey.revokedAt &&
+        canUseDeviceKeyForEncryption(deviceKey) &&
         isRecentlySeenDevice(deviceKey),
     );
   }
@@ -6622,10 +6687,12 @@ function CareHub({
 
 function ProfileView({
   currentMember,
+  deviceKeys,
   updateOwnProfile,
   uploadProfilePhoto,
 }: {
   currentMember: Member;
+  deviceKeys: DeviceKey[];
   updateOwnProfile: (input: ProfileUpdateInput) => Promise<boolean>;
   uploadProfilePhoto: (file: File) => Promise<boolean>;
 }) {
@@ -6711,6 +6778,7 @@ function ProfileView({
             </select>
           </div>
         </div>
+        <DeviceFingerprintList member={currentMember} deviceKeys={deviceKeys} title="Dispositivos deste perfil" />
       </section>
 
       <section className="surface form-panel profile-consent-panel">
@@ -7499,6 +7567,7 @@ function ConnectionsView({
   interests,
   relationships,
   privacySettings,
+  deviceKeys,
   updateIntention,
   requestIntroduction,
   updateIntroductionStatus,
@@ -7515,6 +7584,7 @@ function ConnectionsView({
   interests: MutualInterest[];
   relationships: RelationshipLink[];
   privacySettings: PrivacySettings;
+  deviceKeys: DeviceKey[];
   updateIntention: (input: { kinds: IntentionKind[]; note: string }) => Promise<boolean>;
   requestIntroduction: (input: { targetId: string; connectorId: string; note: string }) => Promise<boolean>;
   updateIntroductionStatus: (introductionId: string, status: IntroductionStatus) => Promise<void>;
@@ -7677,6 +7747,7 @@ function ConnectionsView({
                     <span key={kind}>{kind}</span>
                   ))}
                 </footer>
+                <DeviceFingerprintList member={member} deviceKeys={deviceKeys} compact />
               </article>
             );
           })}
@@ -8764,6 +8835,39 @@ function MemberAvatar({ member, className = "avatar" }: { member: Member; classN
   );
 }
 
+function DeviceFingerprintList({
+  member,
+  deviceKeys,
+  title = "Dispositivos",
+  compact = false,
+}: {
+  member: Member;
+  deviceKeys: DeviceKey[];
+  title?: string;
+  compact?: boolean;
+}) {
+  const memberDeviceKeys = deviceKeys.filter((deviceKey) => deviceKey.memberId === member.id);
+  if (!memberDeviceKeys.length) {
+    return compact ? null : (
+      <div className="fingerprint-list">
+        <strong>{title}</strong>
+        <span>Nenhum dispositivo verificado ainda.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={compact ? "fingerprint-list compact" : "fingerprint-list"}>
+      <strong>{title}</strong>
+      {memberDeviceKeys.slice(0, compact ? 2 : 5).map((deviceKey) => (
+        <span className={deviceKey.trustStatus === "changed" ? "changed" : ""} key={deviceKey.id}>
+          {deviceKey.deviceLabel}: {deviceKey.fingerprint ?? "a calcular"}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function SurfaceHeader({
   icon,
   title,
@@ -8842,48 +8946,6 @@ function base64ToBytes(value: string) {
     bytes[index] = binary.charCodeAt(index);
   }
   return bytes;
-}
-
-async function importPublicDeviceKey(jwk: JsonWebKey) {
-  return window.crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    {
-      name: "ECDH",
-      namedCurve: "P-256",
-    },
-    true,
-    [],
-  );
-}
-
-async function importPrivateDeviceKey(jwk: JsonWebKey) {
-  return window.crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    {
-      name: "ECDH",
-      namedCurve: "P-256",
-    },
-    true,
-    ["deriveKey"],
-  );
-}
-
-async function deriveDeviceAesKey(privateKey: CryptoKey, publicKey: CryptoKey) {
-  return window.crypto.subtle.deriveKey(
-    {
-      name: "ECDH",
-      public: publicKey,
-    },
-    privateKey,
-    {
-      name: "AES-GCM",
-      length: 256,
-    },
-    false,
-    ["encrypt", "decrypt"],
-  );
 }
 
 async function encryptTextForDevice(plainText: string, senderPrivateKey: CryptoKey, recipientPublicJwk: JsonWebKey) {
@@ -8980,71 +9042,6 @@ async function decryptMediaBlob(encryptedBlob: Blob, metadata: EncryptedMediaMet
   return new Blob([decrypted], { type: metadata.mimeType });
 }
 
-async function ensureDeviceIdentity(client: SupabaseClient, memberId: string): Promise<DeviceIdentity> {
-  const storageKey = `${deviceStorePrefix}:${memberId}`;
-  const storedValue = localStorage.getItem(storageKey);
-
-  if (storedValue) {
-    let storedIdentity: (StoredDeviceIdentity & { publicKey: CryptoKey; privateKey: CryptoKey }) | null = null;
-    try {
-      const stored = JSON.parse(storedValue) as StoredDeviceIdentity;
-      if (stored.memberId === memberId && stored.deviceId && stored.publicJwk && stored.privateJwk) {
-        const publicKey = await importPublicDeviceKey(stored.publicJwk);
-        const privateKey = await importPrivateDeviceKey(stored.privateJwk);
-        storedIdentity = { ...stored, publicKey, privateKey };
-      }
-    } catch {
-      localStorage.removeItem(storageKey);
-    }
-
-    if (storedIdentity) {
-      const { error } = await client.from("device_keys").upsert({
-        id: storedIdentity.deviceId,
-        member_id: memberId,
-        device_label: getBrowserDeviceLabel(),
-        public_key: storedIdentity.publicJwk,
-        last_seen_at: new Date().toISOString(),
-        revoked_at: null,
-      });
-
-      if (error) throw error;
-      return storedIdentity;
-    }
-  }
-
-  const pair = await window.crypto.subtle.generateKey(
-    {
-      name: "ECDH",
-      namedCurve: "P-256",
-    },
-    true,
-    ["deriveKey"],
-  );
-  const publicJwk = await window.crypto.subtle.exportKey("jwk", pair.publicKey);
-  const privateJwk = await window.crypto.subtle.exportKey("jwk", pair.privateKey);
-  const stored: StoredDeviceIdentity = {
-    deviceId: `device_${crypto.randomUUID()}`,
-    memberId,
-    publicJwk,
-    privateJwk,
-    createdAt: new Date().toISOString(),
-  };
-
-  const { error } = await client.from("device_keys").upsert({
-    id: stored.deviceId,
-    member_id: memberId,
-    device_label: getBrowserDeviceLabel(),
-    public_key: publicJwk,
-    last_seen_at: new Date().toISOString(),
-    revoked_at: null,
-  });
-
-  if (error) throw error;
-
-  localStorage.setItem(storageKey, JSON.stringify(stored));
-  return { ...stored, publicKey: pair.publicKey, privateKey: pair.privateKey };
-}
-
 async function encryptMessageEnvelope(
   payload: EncryptedMessageBody,
   senderIdentity: DeviceIdentity,
@@ -9086,18 +9083,23 @@ async function decryptMessageEnvelope(
     return {
       body: parsed.body,
       citationCode: typeof parsed.citationCode === "string" ? parsed.citationCode : null,
+      image: isEncryptedMediaMetadata(parsed.image) ? parsed.image : null,
     };
   } catch {
     return null;
   }
 }
 
-function getBrowserDeviceLabel() {
-  const userAgent = navigator.userAgent.toLowerCase();
-  if (userAgent.includes("iphone") || userAgent.includes("android")) return "telemóvel";
-  if (userAgent.includes("ipad") || userAgent.includes("tablet")) return "tablet";
-  if (userAgent.includes("mac") || userAgent.includes("windows") || userAgent.includes("linux")) return "computador";
-  return "browser";
+function isEncryptedMediaMetadata(value: unknown): value is EncryptedMediaMetadata {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<EncryptedMediaMetadata>;
+  return (
+    typeof candidate.key === "string" &&
+    typeof candidate.iv === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.mimeType === "string" &&
+    typeof candidate.size === "number"
+  );
 }
 
 function isRecentlySeenDevice(deviceKey: DeviceKey) {
@@ -9199,19 +9201,20 @@ function getSyncCopy(status: SyncStatus) {
     },
     auth: {
       label: "privado",
-      description: "Acesso protegido por conta e convite.",
+      description: "Acesso por conta e convite; conteúdo sensível precisa de chaves verificadas.",
     },
     loading: {
       label: "a ligar",
       description: "A carregar estado partilhado.",
     },
     connected: {
-      label: "partilhado",
-      description: "Sincronizado com Supabase.",
+      label: "cifrado",
+      description:
+        "Conteúdo novo é cifrado por dispositivo contra leitura da base de dados; confirma chaves para resistir a troca maliciosa.",
     },
     saving: {
       label: "a guardar",
-      description: "A guardar alterações partilhadas.",
+      description: "A guardar metadados e envelopes cifrados.",
     },
     error: {
       label: "erro sync",
@@ -9371,5 +9374,15 @@ function initials(name: string) {
     .join("")
     .toUpperCase();
 }
+
+export {
+  decryptMediaBlob,
+  decryptMessageEnvelope,
+  decryptTextFromDevice,
+  encryptMediaFile,
+  encryptMessageEnvelope,
+  encryptTextForDevice,
+};
+export type { DeviceIdentity, DeviceKey, EncryptedPayload };
 
 export default App;
