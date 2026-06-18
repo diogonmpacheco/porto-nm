@@ -26,6 +26,7 @@ import {
   Sparkles,
   Timer,
   Trash2,
+  User,
   UserPlus,
   Users,
   Vote,
@@ -39,7 +40,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
 type GroupPrivacy = "aberto" | "convite" | "secreto";
-type NavKey = "hoje" | "chat" | "eventos" | "docs" | "conexoes" | "grupos" | "entradas" | "admin";
+type NavKey = "hoje" | "chat" | "perfil" | "eventos" | "docs" | "conexoes" | "grupos" | "entradas" | "admin";
 type EventVibe = "social" | "discussão" | "festa" | "íntimo" | "público";
 type PhotoPolicy = "sem fotos" | "perguntar primeiro" | "zonas comuns ok";
 type DecisionStatus = "rascunho" | "aberta" | "decidida";
@@ -53,11 +54,14 @@ type RelationshipVisibility = "privado" | "conexões" | "comunidade";
 type EncryptionStatus = "plain" | "encrypted" | "locked";
 type DeviceSecurityStatus = "off" | "creating" | "ready" | "error";
 type DirectPeerState = "connecting" | "open" | "closed" | "failed";
+type ConnectionTab = "intencoes" | "intros" | "interesses" | "privacidade";
 
 type Member = {
   id: string;
   name: string;
   pronouns: string;
+  avatarPath?: string;
+  avatarUrl?: string;
   joinedAt: string;
   sponsorId: string | null;
   role: MemberRole;
@@ -310,10 +314,22 @@ type MessageInput = {
   imageExpiresInHours?: number;
 };
 
+type ProfileUpdateInput = {
+  name: string;
+  pronouns: string;
+  status: MemberStatus;
+  consentAvailableFor: string;
+  consentLimits: string;
+  mediaPreference: string;
+  relationshipContext: string;
+  eventComfort: string;
+};
+
 type ProfileRow = {
   id: string;
   name: string;
   pronouns: string | null;
+  avatar_path: string | null;
   joined_at: string;
   sponsor_id: string | null;
   role: MemberRole;
@@ -1285,21 +1301,33 @@ function App() {
       attendeeIdsByEvent.set(row.event_id, attendeeIds);
     });
 
-    const members = ((profilesResult.data ?? []) as ProfileRow[]).map((row) => ({
-      id: row.id,
-      name: row.name,
-      pronouns: row.pronouns ?? "por definir",
-      joinedAt: row.joined_at,
-      sponsorId: row.sponsor_id,
-      role: row.role,
-      groupIds: groupIdsByMember.get(row.id) ?? [],
-      status: row.status,
-      consentAvailableFor: row.consent_available_for ?? "",
-      consentLimits: row.consent_limits ?? "",
-      mediaPreference: row.media_preference ?? "",
-      relationshipContext: row.relationship_context ?? "",
-      eventComfort: row.event_comfort ?? "",
-    }));
+    const members = await Promise.all(
+      ((profilesResult.data ?? []) as ProfileRow[]).map(async (row) => {
+        let avatarUrl: string | undefined;
+        if (row.avatar_path) {
+          const { data } = await supabase.storage.from("profile-photos").createSignedUrl(row.avatar_path, 60 * 60);
+          avatarUrl = data?.signedUrl;
+        }
+
+        return {
+          id: row.id,
+          name: row.name,
+          pronouns: row.pronouns ?? "por definir",
+          avatarPath: row.avatar_path ?? undefined,
+          avatarUrl,
+          joinedAt: row.joined_at,
+          sponsorId: row.sponsor_id,
+          role: row.role,
+          groupIds: groupIdsByMember.get(row.id) ?? [],
+          status: row.status,
+          consentAvailableFor: row.consent_available_for ?? "",
+          consentLimits: row.consent_limits ?? "",
+          mediaPreference: row.media_preference ?? "",
+          relationshipContext: row.relationship_context ?? "",
+          eventComfort: row.event_comfort ?? "",
+        };
+      }),
+    );
 
     const groups = ((groupsResult.data ?? []) as GroupRow[]).map((row) => ({
       id: row.id,
@@ -1548,10 +1576,20 @@ function App() {
     }
 
     const row = data as ProfileRow;
+    let avatarUrl: string | undefined;
+    if (row.avatar_path) {
+      const { data: signedAvatar } = await supabase.storage
+        .from("profile-photos")
+        .createSignedUrl(row.avatar_path, 60 * 60);
+      avatarUrl = signedAvatar?.signedUrl;
+    }
+
     const member: Member = {
       id: row.id,
       name: row.name,
       pronouns: row.pronouns ?? "por definir",
+      avatarPath: row.avatar_path ?? undefined,
+      avatarUrl,
       joinedAt: row.joined_at,
       sponsorId: row.sponsor_id,
       role: row.role,
@@ -2211,6 +2249,120 @@ function App() {
       members: current.members.map((member) => (member.id === memberId ? { ...member, role } : member)),
     }));
     showNotice("Papel atualizado.");
+  }
+
+  async function updateOwnProfile(input: ProfileUpdateInput) {
+    const nextProfile = {
+      name: input.name.trim(),
+      pronouns: input.pronouns.trim() || "por definir",
+      status: input.status,
+      consentAvailableFor: input.consentAvailableFor.trim(),
+      consentLimits: input.consentLimits.trim(),
+      mediaPreference: input.mediaPreference.trim(),
+      relationshipContext: input.relationshipContext.trim(),
+      eventComfort: input.eventComfort.trim(),
+    };
+
+    if (!nextProfile.name) {
+      showNotice("O nome não pode ficar vazio.");
+      return false;
+    }
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          name: nextProfile.name,
+          pronouns: nextProfile.pronouns,
+          status: nextProfile.status,
+          consent_available_for: nextProfile.consentAvailableFor,
+          consent_limits: nextProfile.consentLimits,
+          media_preference: nextProfile.mediaPreference,
+          relationship_context: nextProfile.relationshipContext,
+          event_comfort: nextProfile.eventComfort,
+        })
+        .eq("id", profile.id);
+
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+
+      await fetchBackendData();
+      showNotice("Perfil atualizado.");
+      return true;
+    }
+
+    updateState((current) => ({
+      ...current,
+      members: current.members.map((member) =>
+        member.id === currentMember.id ? { ...member, ...nextProfile } : member,
+      ),
+    }));
+    showNotice("Perfil atualizado.");
+    return true;
+  }
+
+  async function uploadProfilePhoto(file: File) {
+    if (!file.type.startsWith("image/")) {
+      showNotice("Escolhe uma imagem.");
+      return false;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showNotice("A fotografia deve ter menos de 5 MB.");
+      return false;
+    }
+
+    if (usingBackend && supabase && profile) {
+      const previousPath = currentMember.avatarPath;
+      const avatarPath = `${profile.id}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+      setSyncStatus("saving");
+      const { error: uploadError } = await supabase.storage
+        .from("profile-photos")
+        .upload(avatarPath, file, {
+          cacheControl: "3600",
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        setSyncStatus("error");
+        setSyncMessage(uploadError.message);
+        return false;
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_path: avatarPath })
+        .eq("id", profile.id);
+
+      if (updateError) {
+        setSyncStatus("error");
+        setSyncMessage(updateError.message);
+        return false;
+      }
+
+      if (previousPath && previousPath !== avatarPath) {
+        await supabase.storage.from("profile-photos").remove([previousPath]);
+      }
+
+      await fetchBackendData();
+      showNotice("Fotografia atualizada.");
+      return true;
+    }
+
+    const avatarUrl = await fileToDataUrl(file);
+    updateState((current) => ({
+      ...current,
+      members: current.members.map((member) =>
+        member.id === currentMember.id ? { ...member, avatarUrl, avatarPath: undefined } : member,
+      ),
+    }));
+    showNotice("Fotografia atualizada.");
+    return true;
   }
 
   async function sendMessage(input: MessageInput) {
@@ -3312,7 +3464,15 @@ function App() {
       stewardId: input.stewardId,
       color: groupColor,
     };
-    updateState((current) => ({ ...current, groups: [...current.groups, group] }));
+    updateState((current) => ({
+      ...current,
+      groups: [...current.groups, group],
+      members: current.members.map((member) =>
+        member.id === input.stewardId && !member.groupIds.includes(group.id)
+          ? { ...member, groupIds: [...member.groupIds, group.id] }
+          : member,
+      ),
+    }));
     setActiveGroupId(group.id);
     showNotice("Subgrupo criado.");
     return true;
@@ -3459,7 +3619,8 @@ function App() {
 
         <nav className={currentMember.role === "admin" ? "nav-list admin-nav" : "nav-list"} aria-label="Navegação principal">
           <NavButton id="hoje" active={activeNav} setActive={setActiveNav} icon={<CircleDot />} label="Hoje" />
-          <NavButton id="chat" active={activeNav} setActive={setActiveNav} icon={<MessageCircle />} label="Ao vivo" />
+          <NavButton id="chat" active={activeNav} setActive={setActiveNav} icon={<MessageCircle />} label="Chat" />
+          <NavButton id="perfil" active={activeNav} setActive={setActiveNav} icon={<User />} label="Perfil" />
           <NavButton id="eventos" active={activeNav} setActive={setActiveNav} icon={<CalendarDays />} label="Eventos" />
           <NavButton id="docs" active={activeNav} setActive={setActiveNav} icon={<BookOpenText />} label="Memória" />
           <NavButton id="conexoes" active={activeNav} setActive={setActiveNav} icon={<HeartHandshake />} label="Conexões" />
@@ -3472,6 +3633,7 @@ function App() {
 
         {usingBackend && profile ? (
           <div className="actor-box account-box">
+            <MemberAvatar member={profile} className="account-avatar" />
             <label>Conta</label>
             <strong>{profile.name}</strong>
             <span>{profile.role}</span>
@@ -3562,8 +3724,17 @@ function App() {
             knownDeviceCount={deviceKeys.length}
             directPeerCount={directPeerCount}
             toggleMemberStatus={toggleMemberStatus}
+            addGroup={addGroup}
             copyText={copyText}
             showNotice={showNotice}
+          />
+        )}
+
+        {activeNav === "perfil" && (
+          <ProfileView
+            currentMember={currentMember}
+            updateOwnProfile={updateOwnProfile}
+            uploadProfilePhoto={uploadProfilePhoto}
           />
         )}
 
@@ -3925,7 +4096,7 @@ function Overview({
           <div className="sponsor-chain">
             {members.map((member) => (
               <article className="sponsor-node" key={member.id}>
-                <div className="avatar">{initials(member.name)}</div>
+                <MemberAvatar member={member} />
                 <div>
                   <h3>{member.name}</h3>
                   <p>
@@ -3980,6 +4151,7 @@ function ChatView({
   knownDeviceCount,
   directPeerCount,
   toggleMemberStatus,
+  addGroup,
   copyText,
   showNotice,
 }: {
@@ -4002,6 +4174,7 @@ function ChatView({
   knownDeviceCount: number;
   directPeerCount: number;
   toggleMemberStatus: (id: string) => void;
+  addGroup: (input: { name: string; focus: string; privacy: GroupPrivacy; stewardId: string }) => Promise<boolean>;
   copyText: (value: string, message: string) => Promise<void>;
   showNotice: (message: string) => void;
 }) {
@@ -4014,6 +4187,12 @@ function ChatView({
   const [imageExpiresInHours, setImageExpiresInHours] = useState(24);
   const [revealedImageUrls, setRevealedImageUrls] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
+  const [showRoomForm, setShowRoomForm] = useState(false);
+  const [roomForm, setRoomForm] = useState({
+    name: "",
+    focus: "",
+    privacy: "convite" as GroupPrivacy,
+  });
   const activeGroup = groups.find((group) => group.id === activeGroupId) ?? groups[0];
   const encryptionReady = deviceSecurityStatus === "ready";
   const visibleMessages = messages.filter((message) => {
@@ -4224,18 +4403,73 @@ function ChatView({
     }
   }
 
+  async function handleRoomSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!roomForm.name.trim() || !roomForm.focus.trim()) return;
+    const created = await addGroup({ ...roomForm, stewardId: currentMember.id });
+    if (created) {
+      setRoomForm({ name: "", focus: "", privacy: "convite" });
+      setShowRoomForm(false);
+    }
+  }
+
   return (
     <section className="chat-layout">
       <aside className="surface live-sidebar">
-        <div className="field-group">
-          <label htmlFor="room-select">Sala</label>
-          <select id="room-select" value={activeGroup.id} onChange={(event) => setActiveGroupId(event.target.value)}>
-            {groups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
+        <div className="room-picker-block">
+          <div className="field-group">
+            <label htmlFor="room-select">Sala</label>
+            <select id="room-select" value={activeGroup.id} onChange={(event) => setActiveGroupId(event.target.value)}>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {currentMember.role === "admin" && (
+            <>
+              <button className="secondary-button full-width" type="button" onClick={() => setShowRoomForm((current) => !current)}>
+                <Plus size={16} aria-hidden />
+                Nova sala
+              </button>
+              {showRoomForm && (
+                <form className="room-create-form" onSubmit={handleRoomSubmit}>
+                  <div className="field-group">
+                    <label htmlFor="chat-room-name">Nome</label>
+                    <input
+                      id="chat-room-name"
+                      value={roomForm.name}
+                      onChange={(event) => setRoomForm({ ...roomForm, name: event.target.value })}
+                    />
+                  </div>
+                  <div className="field-group">
+                    <label htmlFor="chat-room-focus">Foco</label>
+                    <input
+                      id="chat-room-focus"
+                      value={roomForm.focus}
+                      onChange={(event) => setRoomForm({ ...roomForm, focus: event.target.value })}
+                    />
+                  </div>
+                  <div className="field-group">
+                    <label htmlFor="chat-room-privacy">Visibilidade</label>
+                    <select
+                      id="chat-room-privacy"
+                      value={roomForm.privacy}
+                      onChange={(event) => setRoomForm({ ...roomForm, privacy: event.target.value as GroupPrivacy })}
+                    >
+                      <option value="aberto">aberto</option>
+                      <option value="convite">convite</option>
+                      <option value="secreto">secreto</option>
+                    </select>
+                  </div>
+                  <button className="primary-button full-width" type="submit">
+                    Criar sala
+                  </button>
+                </form>
+              )}
+            </>
+          )}
         </div>
 
         <div className="member-presence">
@@ -4431,6 +4665,154 @@ function ChatView({
   );
 }
 
+function ProfileView({
+  currentMember,
+  updateOwnProfile,
+  uploadProfilePhoto,
+}: {
+  currentMember: Member;
+  updateOwnProfile: (input: ProfileUpdateInput) => Promise<boolean>;
+  uploadProfilePhoto: (file: File) => Promise<boolean>;
+}) {
+  const [form, setForm] = useState<ProfileUpdateInput>({
+    name: currentMember.name,
+    pronouns: currentMember.pronouns,
+    status: currentMember.status,
+    consentAvailableFor: currentMember.consentAvailableFor,
+    consentLimits: currentMember.consentLimits,
+    mediaPreference: currentMember.mediaPreference,
+    relationshipContext: currentMember.relationshipContext,
+    eventComfort: currentMember.eventComfort,
+  });
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      name: currentMember.name,
+      pronouns: currentMember.pronouns,
+      status: currentMember.status,
+      consentAvailableFor: currentMember.consentAvailableFor,
+      consentLimits: currentMember.consentLimits,
+      mediaPreference: currentMember.mediaPreference,
+      relationshipContext: currentMember.relationshipContext,
+      eventComfort: currentMember.eventComfort,
+    });
+  }, [currentMember]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await updateOwnProfile(form);
+  }
+
+  async function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      await uploadProfilePhoto(file);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  return (
+    <form className="profile-layout" onSubmit={handleSubmit}>
+      <section className="surface profile-identity">
+        <div className="profile-photo-row">
+          <MemberAvatar member={currentMember} className="profile-avatar" />
+          <label className="secondary-button photo-picker">
+            <ImageIcon size={17} aria-hidden />
+            {photoBusy ? "A enviar" : "Fotografia"}
+            <input className="sr-only" type="file" accept="image/*" onChange={handlePhotoChange} />
+          </label>
+        </div>
+        <div className="field-group">
+          <label htmlFor="profile-name">Nome</label>
+          <input
+            id="profile-name"
+            value={form.name}
+            onChange={(event) => setForm({ ...form, name: event.target.value })}
+          />
+        </div>
+        <div className="field-pair">
+          <div className="field-group">
+            <label htmlFor="profile-pronouns">Pronomes</label>
+            <input
+              id="profile-pronouns"
+              value={form.pronouns}
+              onChange={(event) => setForm({ ...form, pronouns: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="profile-status">Presença</label>
+            <select
+              id="profile-status"
+              value={form.status}
+              onChange={(event) => setForm({ ...form, status: event.target.value as MemberStatus })}
+            >
+              <option value="online">online</option>
+              <option value="offline">offline</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section className="surface form-panel profile-consent-panel">
+        <SurfaceHeader icon={<HeartHandshake />} title="Cartão e preferências" />
+        <div className="field-pair">
+          <div className="field-group">
+            <label htmlFor="profile-available">Disponível para</label>
+            <input
+              id="profile-available"
+              value={form.consentAvailableFor}
+              onChange={(event) => setForm({ ...form, consentAvailableFor: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="profile-limits">Limites</label>
+            <input
+              id="profile-limits"
+              value={form.consentLimits}
+              onChange={(event) => setForm({ ...form, consentLimits: event.target.value })}
+            />
+          </div>
+        </div>
+        <div className="field-group">
+          <label htmlFor="profile-media">Media íntima</label>
+          <input
+            id="profile-media"
+            value={form.mediaPreference}
+            onChange={(event) => setForm({ ...form, mediaPreference: event.target.value })}
+          />
+        </div>
+        <div className="field-pair">
+          <div className="field-group">
+            <label htmlFor="profile-context">Contexto relacional</label>
+            <input
+              id="profile-context"
+              value={form.relationshipContext}
+              onChange={(event) => setForm({ ...form, relationshipContext: event.target.value })}
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="profile-events">Eventos</label>
+            <input
+              id="profile-events"
+              value={form.eventComfort}
+              onChange={(event) => setForm({ ...form, eventComfort: event.target.value })}
+            />
+          </div>
+        </div>
+        <button className="primary-button" type="submit">
+          <Check size={17} aria-hidden />
+          Guardar perfil
+        </button>
+      </section>
+    </form>
+  );
+}
+
 function EventsView({
   events,
   eventRooms,
@@ -4481,6 +4863,7 @@ function EventsView({
   deleteEvent: (eventId: string) => Promise<void>;
   toggleRsvp: (eventId: string) => void;
 }) {
+  const [showEventForm, setShowEventForm] = useState(false);
   const [form, setForm] = useState({
     title: "",
     startsAt: "2026-06-25T19:30",
@@ -4511,6 +4894,7 @@ function EventsView({
     const created = await addEvent(form);
     if (created) {
       setForm((current) => ({ ...current, title: "", place: "", boundaryNotes: "", aftercarePrompt: "" }));
+      setShowEventForm(false);
     }
   }
 
@@ -4537,8 +4921,21 @@ function EventsView({
   }
 
   return (
-    <section className="two-column">
-      <form className="surface form-panel" onSubmit={handleSubmit}>
+    <section className="events-layout">
+      <section className="event-create-stack">
+        <div className="surface event-toolbar">
+          <div>
+            <h3>Calendário</h3>
+            <p>{events.length} eventos marcados</p>
+          </div>
+          <button className="primary-button" type="button" onClick={() => setShowEventForm((current) => !current)}>
+            <Plus size={17} aria-hidden />
+            {showEventForm ? "Fechar" : "Novo evento"}
+          </button>
+        </div>
+
+        {showEventForm && (
+      <form className="surface form-panel event-create-panel" onSubmit={handleSubmit}>
         <h3>Novo evento</h3>
         <div className="field-group">
           <label htmlFor="event-title">Título</label>
@@ -4630,6 +5027,8 @@ function EventsView({
           Criar evento
         </button>
       </form>
+        )}
+      </section>
 
       <section className="event-board">
         <form className="surface checkin-panel" onSubmit={handleCheckInSubmit}>
@@ -5183,6 +5582,7 @@ function ConnectionsView({
     visibility: "comunidade" as RelationshipVisibility,
   });
   const [privacyForm, setPrivacyForm] = useState(privacySettings);
+  const [activeTab, setActiveTab] = useState<ConnectionTab>("intencoes");
 
   useEffect(() => {
     setIntentionForm({
@@ -5244,9 +5644,32 @@ function ConnectionsView({
       relationship.relatedMemberId === currentMember.id ||
       currentMember.role === "admin",
   );
+  const tabs: { id: ConnectionTab; label: string; icon: React.ReactNode }[] = [
+    { id: "intencoes", label: "Intenções", icon: <Heart size={15} aria-hidden /> },
+    { id: "intros", label: "Intros", icon: <UserPlus size={15} aria-hidden /> },
+    { id: "interesses", label: "Interesses", icon: <HeartHandshake size={15} aria-hidden /> },
+    { id: "privacidade", label: "Privacidade", icon: <RadioTower size={15} aria-hidden /> },
+  ];
 
   return (
-    <section className="connections-layout">
+    <section className="connections-layout compact-connections">
+      <div className="connection-tabs surface" role="tablist" aria-label="Conexões">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            className={activeTab === tab.id ? "secondary-button selected" : "secondary-button"}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "intencoes" && (
       <form className="surface form-panel" onSubmit={handleIntentionSubmit}>
         <SurfaceHeader icon={<Heart />} title="Intenções" />
         <div className="intention-grid">
@@ -5281,7 +5704,7 @@ function ConnectionsView({
             return (
               <article className="connection-card" key={member.id}>
                 <header>
-                  <div className="avatar">{initials(member.name)}</div>
+                  <MemberAvatar member={member} />
                   <div>
                     <h3>{member.name}</h3>
                     <p>{intention?.note || "sem nota"}</p>
@@ -5297,7 +5720,9 @@ function ConnectionsView({
           })}
         </div>
       </form>
+      )}
 
+      {activeTab === "intros" && (
       <section className="connection-stack">
         <form className="surface form-panel" onSubmit={handleIntroSubmit}>
           <SurfaceHeader icon={<UserPlus />} title="Apresentação quente" />
@@ -5387,7 +5812,9 @@ function ConnectionsView({
           </div>
         </section>
       </section>
+      )}
 
+      {activeTab === "interesses" && (
       <section className="connection-stack">
         <section className="surface">
           <SurfaceHeader icon={<Heart />} title="Interesse mútuo" />
@@ -5395,7 +5822,7 @@ function ConnectionsView({
             {otherMembers.map((member) => (
               <article className="connection-card" key={member.id}>
                 <header>
-                  <div className="avatar">{initials(member.name)}</div>
+                  <MemberAvatar member={member} />
                   <div>
                     <h3>{member.name}</h3>
                     <p>{member.relationshipContext || member.pronouns}</p>
@@ -5506,7 +5933,9 @@ function ConnectionsView({
           </div>
         </form>
       </section>
+      )}
 
+      {activeTab === "privacidade" && (
       <form className="surface form-panel privacy-panel" onSubmit={handlePrivacySubmit}>
         <SurfaceHeader icon={<RadioTower />} title="Fundação P2P" />
         <div className="privacy-toggle-list">
@@ -5540,6 +5969,7 @@ function ConnectionsView({
           Guardar fundação
         </button>
       </form>
+      )}
     </section>
   );
 }
@@ -5869,7 +6299,7 @@ function EntrancesView({
             const invitees = members.filter((candidate) => candidate.sponsorId === member.id);
             return (
               <article className="lineage-row" key={member.id}>
-                <div className="avatar">{initials(member.name)}</div>
+                <MemberAvatar member={member} />
                 <div>
                   <h3>{member.name}</h3>
                   <p>{sponsor ? `${sponsor.name} → ${member.name}` : "sem convite anterior"}</p>
@@ -5942,7 +6372,7 @@ function EntrancesView({
           {members.map((member) => (
             <article className="consent-card" key={member.id}>
               <header>
-                <div className="avatar">{initials(member.name)}</div>
+                <MemberAvatar member={member} />
                 <div>
                   <h3>{member.name}</h3>
                   <p>{member.pronouns}</p>
@@ -6181,7 +6611,7 @@ function AdminView({
               const sponsor = member.sponsorId ? memberById.get(member.sponsorId) : undefined;
               return (
                 <article className="admin-member-row" key={member.id}>
-                  <div className="avatar">{initials(member.name)}</div>
+                  <MemberAvatar member={member} />
                   <div className="admin-member-main">
                     <h3>{member.name}</h3>
                     <p>
@@ -6356,6 +6786,14 @@ function Metric({
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
+  );
+}
+
+function MemberAvatar({ member, className = "avatar" }: { member: Member; className?: string }) {
+  return (
+    <div className={className}>
+      {member.avatarUrl ? <img src={member.avatarUrl} alt="" /> : initials(member.name)}
+    </div>
   );
 }
 
@@ -6814,7 +7252,8 @@ function resolveLoginIdentifier(value: string) {
 function navTitle(nav: NavKey) {
   const titles: Record<NavKey, string> = {
     hoje: "Hoje",
-    chat: "Chat ao vivo",
+    chat: "Chat",
+    perfil: "Perfil",
     eventos: "Eventos",
     docs: "Memória e decisões",
     conexoes: "Conexões e confiança",

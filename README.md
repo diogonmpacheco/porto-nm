@@ -35,9 +35,10 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Lista de apadrinhamento.
 - Visão rápida dos subgrupos.
 
-### Chat ao vivo
+### Chat
 
 - Conversas por sala/subgrupo.
+- Admins podem criar novas salas directamente no Chat.
 - Presença online/offline por membro.
 - Relay cifrado por dispositivo para novas mensagens.
 - Cada browser cria uma chave local; a chave privada fica apenas nesse browser.
@@ -50,6 +51,13 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Sugestões de citações enquanto se escreve.
 - Cópia rápida de códigos de documentos/decisões.
 - Interface mobile simplificada, mais próxima de uma app de mensagens.
+
+### Perfil
+
+- Cada pessoa pode actualizar o próprio nome, pronomes e presença.
+- Upload de fotografia de perfil.
+- Fotografias de perfil ficam em storage privado.
+- Cartão de consentimento e preferências editável pelo próprio perfil.
 
 ### Imagens privadas
 
@@ -74,6 +82,8 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 
 ### Eventos
 
+- Lista de eventos visível por defeito.
+- Criação de evento escondida atrás do botão **Novo evento**.
 - Criação de eventos com data, local, capacidade e subgrupo.
 - Confirmação de presença.
 - Política de fotos por evento.
@@ -86,6 +96,7 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 ### Conexões e confiança
 
 - Área **Conexões e confiança**.
+- Interface por separadores para reduzir ruído visual.
 - Quadro de intenções: amizades, dates, flirt, eventos, indisponível ou só com apresentação.
 - Notas pessoais de disponibilidade.
 - Pedidos de **apresentação quente**, com pessoa alvo, pessoa ponte, nota e estado.
@@ -122,7 +133,7 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Políticas para leitura/escrita por membros, autores, participantes e admins.
 - Políticas admin para leitura global e eliminação de mensagens.
 - Realtime activado nas tabelas principais.
-- Storage privado para imagens.
+- Storage privado para imagens de chat e fotografias de perfil.
 - Chaves públicas por dispositivo em `device_keys`.
 - Novas mensagens de texto/citação guardadas como envelopes cifrados em `messages.encrypted_payloads`.
 - Media nova guardada cifrada, com chave/IV só dentro do envelope cifrado por dispositivo.
