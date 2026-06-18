@@ -29,6 +29,8 @@ import {
   User,
   UserPlus,
   Users,
+  Video,
+  VideoOff,
   Vote,
   Wifi,
   WifiOff,
@@ -57,7 +59,7 @@ type DirectPeerState = "connecting" | "open" | "closed" | "failed";
 type ConnectionTab = "intencoes" | "intros" | "interesses" | "privacidade";
 type CommunityTab = "perfil" | "conexoes" | "grupos" | "entradas" | "compersao";
 type MemoryTab = "docs" | "acordos" | "leituras" | "rituais";
-type NocturnoTab = "eroteca" | "provocacoes" | "tensao" | "fantasias" | "confessionario";
+type NocturnoTab = "eroteca" | "provocacoes" | "tensao" | "fantasias" | "confessionario" | "video";
 type CareTab = "ciume" | "reparacao" | "saude" | "mediacao";
 
 type Member = {
@@ -520,6 +522,51 @@ type P2PSignalRow = {
   expires_at: string;
 };
 
+type VideoSignalPayload = {
+  kind: "video-call";
+  callId: string;
+  callTitle: string;
+  relayEnabled: boolean;
+  participantIds?: string[];
+  description?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
+};
+
+type ActiveVideoCall = {
+  id: string;
+  title: string;
+  roomId: string;
+  relayEnabled: boolean;
+  participantIds: string[];
+  startedAt: string;
+};
+
+type IncomingVideoOffer = {
+  signalId: string;
+  roomId: string;
+  fromMemberId: string;
+  fromDeviceId: string;
+  payload: VideoSignalPayload;
+  createdAt: string;
+};
+
+type VideoPeerSession = {
+  peerKey: string;
+  callId: string;
+  memberId: string;
+  deviceId: string;
+  peer: RTCPeerConnection;
+  pendingIce: RTCIceCandidateInit[];
+};
+
+type RemoteVideoStream = {
+  id: string;
+  memberId: string;
+  deviceId: string;
+  stream: MediaStream;
+  state: DirectPeerState;
+};
+
 type DirectChatPayload = {
   type: "chat-message";
   messageId: string;
@@ -554,6 +601,13 @@ const deviceStorePrefix = "porto_nm_device_identity";
 const p2pConnectionConfig: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
+const turnUrls = ((import.meta.env.VITE_TURN_URLS as string | undefined) ?? "")
+  .split(",")
+  .map((url) => url.trim())
+  .filter(Boolean);
+const turnUsername = import.meta.env.VITE_TURN_USERNAME as string | undefined;
+const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL as string | undefined;
+const turnRelayAvailable = turnUrls.length > 0 && Boolean(turnUsername && turnCredential);
 const communityRealtimeTables = [
   "profiles",
   "groups",
@@ -1988,6 +2042,7 @@ function App() {
     if (seenSignalIdsRef.current.has(row.id)) return;
     seenSignalIdsRef.current.add(row.id);
     if (new Date(row.expires_at).getTime() < Date.now()) return;
+    if (isVideoSignalPayload(row.payload)) return;
 
     const remoteDevice =
       deviceKeysRef.current.find((deviceKey) => deviceKey.id === row.from_device_id) ?? {
@@ -3806,8 +3861,12 @@ function App() {
         {activeNav === "nocturno" && (
           <NocturnoView
             members={state.members}
+            groups={state.groups}
             currentMember={currentMember}
             memberById={memberById}
+            deviceIdentity={deviceIdentity}
+            deviceKeys={deviceKeys}
+            deviceSecurityStatus={deviceSecurityStatus}
             interests={state.interests}
             toggleInterest={toggleInterest}
             showNotice={showNotice}
@@ -5095,15 +5154,23 @@ function RitualsView() {
 
 function NocturnoView({
   members,
+  groups,
   currentMember,
   memberById,
+  deviceIdentity,
+  deviceKeys,
+  deviceSecurityStatus,
   interests,
   toggleInterest,
   showNotice,
 }: {
   members: Member[];
+  groups: Group[];
   currentMember: Member;
   memberById: Map<string, Member>;
+  deviceIdentity: DeviceIdentity | null;
+  deviceKeys: DeviceKey[];
+  deviceSecurityStatus: DeviceSecurityStatus;
   interests: MutualInterest[];
   toggleInterest: (input: { targetId: string; kind: InterestKind }) => Promise<void>;
   showNotice: (message: string) => void;
@@ -5218,6 +5285,7 @@ function NocturnoView({
         <HubTabButton id="tensao" active={activeTab} setActive={setActiveTab} icon={<Heart size={15} aria-hidden />} label="Tensão mútua" />
         <HubTabButton id="fantasias" active={activeTab} setActive={setActiveTab} icon={<Eye size={15} aria-hidden />} label="Fantasias" />
         <HubTabButton id="confessionario" active={activeTab} setActive={setActiveTab} icon={<LockKeyhole size={15} aria-hidden />} label="Confessionário" />
+        <HubTabButton id="video" active={activeTab} setActive={setActiveTab} icon={<Video size={15} aria-hidden />} label="Vídeo privado" />
       </div>
 
       {activeTab === "eroteca" && (
@@ -5404,7 +5472,797 @@ function NocturnoView({
           </section>
         </section>
       )}
+
+      {activeTab === "video" && (
+        <PrivateVideoRooms
+          members={members}
+          groups={groups}
+          currentMember={currentMember}
+          memberById={memberById}
+          deviceIdentity={deviceIdentity}
+          deviceKeys={deviceKeys}
+          deviceSecurityStatus={deviceSecurityStatus}
+          showNotice={showNotice}
+        />
+      )}
     </section>
+  );
+}
+
+function PrivateVideoRooms({
+  members,
+  groups,
+  currentMember,
+  memberById,
+  deviceIdentity,
+  deviceKeys,
+  deviceSecurityStatus,
+  showNotice,
+}: {
+  members: Member[];
+  groups: Group[];
+  currentMember: Member;
+  memberById: Map<string, Member>;
+  deviceIdentity: DeviceIdentity | null;
+  deviceKeys: DeviceKey[];
+  deviceSecurityStatus: DeviceSecurityStatus;
+  showNotice: (message: string) => void;
+}) {
+  const memberGroups = groups.filter((group) => currentMember.groupIds.includes(group.id));
+  const [groupId, setGroupId] = useState(memberGroups[0]?.id ?? "");
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [callTitle, setCallTitle] = useState("Sala privada");
+  const [relayEnabled, setRelayEnabled] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [activeCall, setActiveCall] = useState<ActiveVideoCall | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<RemoteVideoStream[]>([]);
+  const [incomingOffers, setIncomingOffers] = useState<IncomingVideoOffer[]>([]);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const activeCallRef = useRef<ActiveVideoCall | null>(null);
+  const peerSessionsRef = useRef<Map<string, VideoPeerSession>>(new Map());
+  const pendingVideoIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const seenVideoSignalsRef = useRef<Set<string>>(new Set());
+  const signalReady = Boolean(supabase && deviceIdentity && deviceSecurityStatus === "ready");
+  const browserCanCall =
+    typeof window !== "undefined" &&
+    "RTCPeerConnection" in window &&
+    Boolean(navigator.mediaDevices?.getUserMedia);
+  const selectedGroup = groups.find((group) => group.id === groupId) ?? memberGroups[0];
+  const groupMembers = members.filter(
+    (member) => member.id !== currentMember.id && member.groupIds.includes(selectedGroup?.id ?? ""),
+  );
+  const availableMemberIds = new Set(
+    deviceKeys
+      .filter((deviceKey) => !deviceKey.revokedAt && deviceKey.memberId !== currentMember.id && isRecentlySeenDevice(deviceKey))
+      .map((deviceKey) => deviceKey.memberId),
+  );
+  const liveDeviceCount = deviceKeys.filter(
+    (deviceKey) => !deviceKey.revokedAt && deviceKey.memberId !== currentMember.id && isRecentlySeenDevice(deviceKey),
+  ).length;
+  const relayActuallyEnabled = relayEnabled && turnRelayAvailable;
+
+  useEffect(() => {
+    if (!selectedGroup && memberGroups[0]) {
+      setGroupId(memberGroups[0].id);
+    }
+  }, [memberGroups, selectedGroup]);
+
+  useEffect(() => {
+    const groupMemberIds = new Set(groupMembers.map((member) => member.id));
+    const onlineGroupMemberIds = groupMembers
+      .filter((member) => availableMemberIds.has(member.id) || (!signalReady && member.status === "online"))
+      .map((member) => member.id);
+
+    setSelectedMemberIds((current) => {
+      const kept = current.filter((memberId) => groupMemberIds.has(memberId));
+      return kept.length ? kept : onlineGroupMemberIds.slice(0, 4);
+    });
+  }, [groupId, members, deviceKeys, signalReady]);
+
+  useEffect(() => {
+    activeCallRef.current = activeCall;
+  }, [activeCall]);
+
+  useEffect(() => {
+    if (!supabase || !deviceIdentity) return;
+
+    const loadPendingVideoSignals = async () => {
+      const { data } = await supabase
+        .from("p2p_signals")
+        .select("*")
+        .eq("to_device_id", deviceIdentity.deviceId)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      ((data ?? []) as P2PSignalRow[]).forEach((row) => {
+        handleVideoSignal(row);
+      });
+    };
+
+    loadPendingVideoSignals();
+    const channel = supabase
+      .channel(`video-signals-${deviceIdentity.deviceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "p2p_signals",
+          filter: `to_device_id=eq.${deviceIdentity.deviceId}`,
+        },
+        (payload) => {
+          handleVideoSignal(payload.new as P2PSignalRow);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [deviceIdentity?.deviceId, currentMember.id]);
+
+  useEffect(() => {
+    return () => {
+      peerSessionsRef.current.forEach((session) => session.peer.close());
+      peerSessionsRef.current.clear();
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  function makePeerKey(callId: string, deviceId: string) {
+    return `${callId}:${deviceId}`;
+  }
+
+  function setLocalMediaStream(stream: MediaStream | null) {
+    localStreamRef.current = stream;
+    setLocalStream(stream);
+  }
+
+  async function getLocalVideoStream() {
+    if (!browserCanCall) {
+      showNotice("Este browser não permite chamadas de vídeo.");
+      return null;
+    }
+
+    if (localStreamRef.current) return localStreamRef.current;
+
+    setCameraStarting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      setLocalMediaStream(stream);
+      return stream;
+    } catch {
+      showNotice("Não consegui abrir a câmara ou o microfone.");
+      return null;
+    } finally {
+      setCameraStarting(false);
+    }
+  }
+
+  function updateRemoteStreamState(peerKey: string, state: DirectPeerState) {
+    setRemoteStreams((current) =>
+      current.map((remoteStream) => (remoteStream.id === peerKey ? { ...remoteStream, state } : remoteStream)),
+    );
+  }
+
+  function closeVideoPeer(peerKey: string) {
+    const session = peerSessionsRef.current.get(peerKey);
+    if (!session) return;
+    session.peer.close();
+    peerSessionsRef.current.delete(peerKey);
+    setRemoteStreams((current) => current.filter((remoteStream) => remoteStream.id !== peerKey));
+  }
+
+  async function leaveVideoRoom(sendClose = true) {
+    const call = activeCallRef.current;
+    const sessions = [...peerSessionsRef.current.values()];
+    if (sendClose && call) {
+      await Promise.all(
+        sessions.map((session) =>
+          sendVideoSignal(session.memberId, session.deviceId, call.roomId, "close", makeSignalPayload(call)),
+        ),
+      );
+    }
+
+    sessions.forEach((session) => session.peer.close());
+    peerSessionsRef.current.clear();
+    pendingVideoIceRef.current.clear();
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    setLocalMediaStream(null);
+    setRemoteStreams([]);
+    setActiveCall(null);
+    setIncomingOffers([]);
+    if (sendClose) showNotice("Sala de vídeo fechada.");
+  }
+
+  function makeSignalPayload(call: ActiveVideoCall, extra: Partial<VideoSignalPayload> = {}): VideoSignalPayload {
+    return {
+      kind: "video-call",
+      callId: call.id,
+      callTitle: call.title,
+      relayEnabled: call.relayEnabled,
+      participantIds: call.participantIds,
+      ...extra,
+    };
+  }
+
+  async function sendVideoSignal(
+    toMemberId: string,
+    toDeviceId: string,
+    roomId: string,
+    signalType: P2PSignalType,
+    payload: VideoSignalPayload,
+  ) {
+    if (!supabase || !deviceIdentity) return false;
+
+    const { error } = await supabase.from("p2p_signals").insert({
+      id: `sig_${crypto.randomUUID()}`,
+      room_id: roomId,
+      from_member_id: currentMember.id,
+      from_device_id: deviceIdentity.deviceId,
+      to_member_id: toMemberId,
+      to_device_id: toDeviceId,
+      signal_type: signalType,
+      payload: payload as unknown as Record<string, unknown>,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    });
+
+    if (error) {
+      showNotice("Não consegui enviar o convite de vídeo.");
+      return false;
+    }
+
+    return true;
+  }
+
+  async function createVideoPeer(remoteDevice: DeviceKey, call: ActiveVideoCall, stream: MediaStream, shouldOffer: boolean) {
+    if (!browserCanCall) return null;
+    if (remoteDevice.memberId === currentMember.id || remoteDevice.id === deviceIdentity?.deviceId) return null;
+
+    const peerKey = makePeerKey(call.id, remoteDevice.id);
+    const existing = peerSessionsRef.current.get(peerKey);
+    if (existing && existing.peer.connectionState !== "closed") return existing;
+
+    const peer = new RTCPeerConnection(getVideoRtcConfig(call.relayEnabled));
+    const session: VideoPeerSession = {
+      peerKey,
+      callId: call.id,
+      memberId: remoteDevice.memberId,
+      deviceId: remoteDevice.id,
+      peer,
+      pendingIce: pendingVideoIceRef.current.get(peerKey) ?? [],
+    };
+    pendingVideoIceRef.current.delete(peerKey);
+    peerSessionsRef.current.set(peerKey, session);
+    setRemoteStreams((current) => {
+      if (current.some((remoteStream) => remoteStream.id === peerKey)) return current;
+      return [
+        ...current,
+        {
+          id: peerKey,
+          memberId: remoteDevice.memberId,
+          deviceId: remoteDevice.id,
+          stream: new MediaStream(),
+          state: "connecting",
+        },
+      ];
+    });
+
+    stream.getTracks().forEach((track) => {
+      peer.addTrack(track, stream);
+    });
+
+    peer.ontrack = (event) => {
+      setRemoteStreams((current) => {
+        const existingStream = current.find((remoteStream) => remoteStream.id === peerKey);
+        const nextStream = event.streams[0] ?? existingStream?.stream ?? new MediaStream();
+        if (!event.streams[0] && !nextStream.getTracks().some((track) => track.id === event.track.id)) {
+          nextStream.addTrack(event.track);
+        }
+
+        if (existingStream) {
+          return current.map((remoteStream) =>
+            remoteStream.id === peerKey ? { ...remoteStream, stream: nextStream, state: "open" } : remoteStream,
+          );
+        }
+
+        return [
+          ...current,
+          {
+            id: peerKey,
+            memberId: remoteDevice.memberId,
+            deviceId: remoteDevice.id,
+            stream: nextStream,
+            state: "open",
+          },
+        ];
+      });
+    };
+
+    peer.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      sendVideoSignal(
+        remoteDevice.memberId,
+        remoteDevice.id,
+        call.roomId,
+        "ice",
+        makeSignalPayload(call, {
+          candidate: event.candidate.toJSON(),
+        }),
+      );
+    };
+
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === "connected") updateRemoteStreamState(peerKey, "open");
+      if (peer.connectionState === "failed" || peer.connectionState === "disconnected") {
+        updateRemoteStreamState(peerKey, "failed");
+      }
+      if (peer.connectionState === "closed") updateRemoteStreamState(peerKey, "closed");
+    };
+
+    if (shouldOffer) {
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      await sendVideoSignal(
+        remoteDevice.memberId,
+        remoteDevice.id,
+        call.roomId,
+        "offer",
+        makeSignalPayload(call, {
+          description: offer,
+        }),
+      );
+    }
+
+    return session;
+  }
+
+  async function applyQueuedVideoIce(session: VideoPeerSession) {
+    if (!session.peer.remoteDescription) return;
+    const queued = [...session.pendingIce];
+    session.pendingIce = [];
+
+    for (const candidate of queued) {
+      try {
+        await session.peer.addIceCandidate(candidate);
+      } catch {
+        // Candidates can arrive late after a browser has already renegotiated.
+      }
+    }
+  }
+
+  function getTargetDeviceKeys(memberIds: string[]) {
+    if (!deviceIdentity) return [];
+    const selected = new Set(memberIds);
+    return deviceKeys.filter(
+      (deviceKey) =>
+        selected.has(deviceKey.memberId) &&
+        deviceKey.id !== deviceIdentity.deviceId &&
+        !deviceKey.revokedAt &&
+        isRecentlySeenDevice(deviceKey),
+    );
+  }
+
+  async function inviteDevicesToCall(devices: DeviceKey[], call: ActiveVideoCall, stream: MediaStream, quiet = false) {
+    let sent = 0;
+
+    for (const deviceKey of devices) {
+      if (peerSessionsRef.current.has(makePeerKey(call.id, deviceKey.id))) continue;
+      try {
+        const session = await createVideoPeer(deviceKey, call, stream, true);
+        if (session) sent += 1;
+      } catch {
+        updateRemoteStreamState(makePeerKey(call.id, deviceKey.id), "failed");
+      }
+    }
+
+    if (!quiet) {
+      showNotice(sent ? `${sent} convite(s) de vídeo enviados.` : "Não encontrei dispositivos online para convidar.");
+    }
+  }
+
+  async function connectAcceptedMemberToMesh(call: ActiveVideoCall, stream: MediaStream, offerFromMemberId: string) {
+    const meshMemberIds = call.participantIds.filter(
+      (memberId) => memberId !== currentMember.id && memberId !== offerFromMemberId && currentMember.id < memberId,
+    );
+    const devices = getTargetDeviceKeys(meshMemberIds);
+    if (devices.length) {
+      await inviteDevicesToCall(devices, call, stream, true);
+    }
+  }
+
+  async function startOrInviteToVideoRoom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedGroup) {
+      showNotice("Escolhe um grupo para a sala.");
+      return;
+    }
+
+    if (relayEnabled && !turnRelayAvailable) {
+      showNotice("Relay ainda não está configurado; vou manter ligação directa.");
+    }
+
+    const stream = await getLocalVideoStream();
+    if (!stream) return;
+
+    const participantIds = [...new Set([currentMember.id, ...selectedMemberIds])];
+    const now = new Date().toISOString();
+    const existingCall = activeCallRef.current;
+    const nextCall: ActiveVideoCall = existingCall
+      ? {
+          ...existingCall,
+          participantIds: [...new Set([...existingCall.participantIds, ...participantIds])],
+        }
+      : {
+          id: `video_${crypto.randomUUID()}`,
+          title: callTitle.trim() || "Sala privada",
+          roomId: selectedGroup.id,
+          relayEnabled: relayActuallyEnabled,
+          participantIds,
+          startedAt: now,
+        };
+
+    activeCallRef.current = nextCall;
+    setActiveCall(nextCall);
+
+    if (!signalReady) {
+      showNotice("Pré-visualização aberta. Para convidar pessoas, entra com backend activo.");
+      return;
+    }
+
+    const targetDevices = getTargetDeviceKeys(selectedMemberIds);
+    if (!targetDevices.length) {
+      showNotice("Escolhe pessoas com dispositivo online para convidar.");
+      return;
+    }
+
+    await inviteDevicesToCall(targetDevices, nextCall, stream);
+  }
+
+  async function answerVideoOffer(offer: IncomingVideoOffer) {
+    if (!offer.payload.description) return;
+    if (!deviceIdentity || !signalReady) {
+      showNotice("Este dispositivo ainda não está pronto para vídeo privado.");
+      return;
+    }
+
+    const stream = await getLocalVideoStream();
+    if (!stream) return;
+
+    const participantIds = [
+      ...new Set([currentMember.id, offer.fromMemberId, ...(offer.payload.participantIds ?? [])]),
+    ];
+    const call: ActiveVideoCall = {
+      id: offer.payload.callId,
+      title: offer.payload.callTitle || "Sala privada",
+      roomId: offer.roomId,
+      relayEnabled: Boolean(offer.payload.relayEnabled && turnRelayAvailable),
+      participantIds,
+      startedAt: offer.createdAt,
+    };
+    activeCallRef.current = call;
+    setActiveCall(call);
+
+    const remoteDevice =
+      deviceKeys.find((deviceKey) => deviceKey.id === offer.fromDeviceId) ?? {
+        id: offer.fromDeviceId,
+        memberId: offer.fromMemberId,
+        deviceLabel: "browser",
+        publicKey: {},
+        createdAt: offer.createdAt,
+        lastSeenAt: offer.createdAt,
+        revokedAt: null,
+      };
+    const peerKey = makePeerKey(call.id, remoteDevice.id);
+    if (peerSessionsRef.current.has(peerKey)) return;
+
+    try {
+      const session = await createVideoPeer(remoteDevice, call, stream, false);
+      if (!session) return;
+      await session.peer.setRemoteDescription(offer.payload.description);
+      await applyQueuedVideoIce(session);
+      const answer = await session.peer.createAnswer();
+      await session.peer.setLocalDescription(answer);
+      await sendVideoSignal(
+        offer.fromMemberId,
+        offer.fromDeviceId,
+        offer.roomId,
+        "answer",
+        makeSignalPayload(call, {
+          description: answer,
+        }),
+      );
+      setIncomingOffers((current) =>
+        current.filter(
+          (incomingOffer) =>
+            incomingOffer.payload.callId !== offer.payload.callId || incomingOffer.fromDeviceId !== offer.fromDeviceId,
+        ),
+      );
+      await connectAcceptedMemberToMesh(call, stream, offer.fromMemberId);
+      showNotice("Entraste na sala de vídeo.");
+    } catch {
+      closeVideoPeer(peerKey);
+      showNotice("Não consegui aceitar esta sala de vídeo.");
+    }
+  }
+
+  async function handleVideoSignal(row: P2PSignalRow) {
+    if (!deviceIdentity || row.to_device_id !== deviceIdentity.deviceId) return;
+    if (seenVideoSignalsRef.current.has(row.id)) return;
+    seenVideoSignalsRef.current.add(row.id);
+    if (new Date(row.expires_at).getTime() < Date.now()) return;
+    if (!isVideoSignalPayload(row.payload)) return;
+
+    const payload = row.payload;
+    const peerKey = makePeerKey(payload.callId, row.from_device_id);
+
+    if (row.signal_type === "offer" && payload.description) {
+      const offer: IncomingVideoOffer = {
+        signalId: row.id,
+        roomId: row.room_id,
+        fromMemberId: row.from_member_id,
+        fromDeviceId: row.from_device_id,
+        payload,
+        createdAt: row.created_at,
+      };
+
+      if (localStreamRef.current && activeCallRef.current?.id === payload.callId) {
+        await answerVideoOffer(offer);
+        return;
+      }
+
+      setIncomingOffers((current) => {
+        const keyExists = current.some(
+          (incomingOffer) =>
+            incomingOffer.payload.callId === payload.callId && incomingOffer.fromDeviceId === row.from_device_id,
+        );
+        return keyExists ? current : [offer, ...current];
+      });
+      showNotice("Convite para vídeo privado recebido.");
+      return;
+    }
+
+    if (row.signal_type === "answer" && payload.description) {
+      const session = peerSessionsRef.current.get(peerKey);
+      if (!session) return;
+      try {
+        await session.peer.setRemoteDescription(payload.description);
+        await applyQueuedVideoIce(session);
+      } catch {
+        updateRemoteStreamState(peerKey, "failed");
+      }
+      return;
+    }
+
+    if (row.signal_type === "ice" && payload.candidate) {
+      const session = peerSessionsRef.current.get(peerKey);
+      const candidate = payload.candidate;
+      if (!session) {
+        const queued = pendingVideoIceRef.current.get(peerKey) ?? [];
+        queued.push(candidate);
+        pendingVideoIceRef.current.set(peerKey, queued);
+        return;
+      }
+
+      if (!session.peer.remoteDescription) {
+        session.pendingIce.push(candidate);
+        return;
+      }
+
+      try {
+        await session.peer.addIceCandidate(candidate);
+      } catch {
+        updateRemoteStreamState(peerKey, "failed");
+      }
+      return;
+    }
+
+    if (row.signal_type === "close") {
+      closeVideoPeer(peerKey);
+    }
+  }
+
+  function declineOffer(offer: IncomingVideoOffer) {
+    setIncomingOffers((current) => current.filter((incomingOffer) => incomingOffer.signalId !== offer.signalId));
+    sendVideoSignal(
+      offer.fromMemberId,
+      offer.fromDeviceId,
+      offer.roomId,
+      "close",
+      {
+        kind: "video-call",
+        callId: offer.payload.callId,
+        callTitle: offer.payload.callTitle,
+        relayEnabled: offer.payload.relayEnabled,
+        participantIds: offer.payload.participantIds,
+      },
+    );
+  }
+
+  function toggleSelectedMember(memberId: string) {
+    setSelectedMemberIds((current) =>
+      current.includes(memberId) ? current.filter((selectedId) => selectedId !== memberId) : [...current, memberId],
+    );
+  }
+
+  return (
+    <section className="video-room-layout">
+      <form className="surface form-panel video-control-panel" onSubmit={startOrInviteToVideoRoom}>
+        <SurfaceHeader icon={<Video />} title="Vídeo privado" />
+        <div className="video-safety-grid">
+          <span>Consentimento antes da câmara</span>
+          <span>Media nunca guardada</span>
+          <span>Sem análise de imagem/voz</span>
+          <span>{relayActuallyEnabled ? "Relay ligado" : "Directo por defeito"}</span>
+        </div>
+        <div className="field-group">
+          <label htmlFor="video-call-title">Nome da sala</label>
+          <input
+            id="video-call-title"
+            value={callTitle}
+            onChange={(event) => setCallTitle(event.target.value)}
+          />
+        </div>
+        <div className="field-group">
+          <label htmlFor="video-group">Grupo</label>
+          <select id="video-group" value={groupId} onChange={(event) => setGroupId(event.target.value)}>
+            {memberGroups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <fieldset className="check-fieldset video-participant-list">
+          <legend>Convidar</legend>
+          {groupMembers.map((member) => {
+            const hasLiveDevice = availableMemberIds.has(member.id);
+            const disabled = signalReady && !hasLiveDevice;
+            return (
+              <label className={disabled ? "member-check disabled" : "member-check"} key={member.id}>
+                <input
+                  type="checkbox"
+                  checked={selectedMemberIds.includes(member.id)}
+                  disabled={disabled}
+                  onChange={() => toggleSelectedMember(member.id)}
+                />
+                <MemberAvatar member={member} />
+                <span>
+                  <strong>{member.name}</strong>
+                  <small>{hasLiveDevice ? "dispositivo online" : member.status === "online" ? "online sem dispositivo" : "offline"}</small>
+                </span>
+              </label>
+            );
+          })}
+        </fieldset>
+        <label className={turnRelayAvailable ? "privacy-toggle relay-toggle" : "privacy-toggle relay-toggle disabled"}>
+          <input
+            type="checkbox"
+            checked={relayEnabled}
+            disabled={!turnRelayAvailable}
+            onChange={(event) => setRelayEnabled(event.target.checked)}
+          />
+          <span>relay explícito</span>
+        </label>
+        <p className="video-relay-note">
+          {turnRelayAvailable
+            ? "Usa relay só quando a ligação directa falhar."
+            : "Relay ainda não configurado; a sala tenta ligação directa."}
+        </p>
+        <button className="primary-button" type="submit" disabled={cameraStarting || !browserCanCall}>
+          <Video size={17} aria-hidden />
+          {cameraStarting ? "A abrir câmara" : activeCall ? "Convidar mais" : "Criar sala"}
+        </button>
+        {activeCall && (
+          <button className="secondary-button" type="button" onClick={() => void leaveVideoRoom()}>
+            <VideoOff size={17} aria-hidden />
+            Fechar sala
+          </button>
+        )}
+      </form>
+
+      <section className="surface video-stage">
+        <header className="video-stage-header">
+          <div>
+            <Video size={18} aria-hidden />
+            <div>
+              <h3>{activeCall?.title ?? "Sem sala activa"}</h3>
+              <p>
+                {signalReady
+                  ? `${liveDeviceCount} dispositivo(s) online no radar`
+                  : "Modo local: pré-visualização sem convites"}
+              </p>
+            </div>
+          </div>
+          {activeCall && <span className="small-pill">{formatClock(activeCall.startedAt)}</span>}
+        </header>
+
+        {incomingOffers.length > 0 && (
+          <div className="incoming-call-list">
+            {incomingOffers.map((offer) => (
+              <article className="incoming-call-card" key={offer.signalId}>
+                <div>
+                  <strong>{offer.payload.callTitle}</strong>
+                  <p>{memberById.get(offer.fromMemberId)?.name ?? "Pessoa"} quer abrir vídeo privado.</p>
+                </div>
+                <div>
+                  <button className="primary-button" type="button" onClick={() => void answerVideoOffer(offer)}>
+                    <Video size={16} aria-hidden />
+                    Aceitar
+                  </button>
+                  <button className="secondary-button" type="button" onClick={() => declineOffer(offer)}>
+                    <X size={16} aria-hidden />
+                    Recusar
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        <div className="video-tile-grid">
+          <VideoStreamTile
+            label={`${currentMember.name} · tu`}
+            muted
+            state={localStream ? "open" : "closed"}
+            stream={localStream}
+          />
+          {remoteStreams.map((remoteStream) => (
+            <VideoStreamTile
+              key={remoteStream.id}
+              label={memberById.get(remoteStream.memberId)?.name ?? "Pessoa"}
+              muted={false}
+              state={remoteStream.state}
+              stream={remoteStream.stream}
+            />
+          ))}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function VideoStreamTile({
+  label,
+  muted,
+  state,
+  stream,
+}: {
+  label: string;
+  muted: boolean;
+  state: DirectPeerState;
+  stream: MediaStream | null;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hasVideoTracks = Boolean(stream?.getVideoTracks().length);
+
+  useEffect(() => {
+    if (!videoRef.current) return;
+    videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  return (
+    <article className={hasVideoTracks ? "video-tile live" : "video-tile"}>
+      {hasVideoTracks ? (
+        <video ref={videoRef} autoPlay playsInline muted={muted} />
+      ) : (
+        <div className="video-placeholder">
+          <VideoOff size={22} aria-hidden />
+        </div>
+      )}
+      <footer>
+        <strong>{label}</strong>
+        <span>{state === "open" ? "ligado" : state === "connecting" ? "a ligar" : state}</span>
+      </footer>
+    </article>
   );
 }
 
@@ -8026,6 +8884,24 @@ function getBrowserDeviceLabel() {
 
 function isRecentlySeenDevice(deviceKey: DeviceKey) {
   return Date.now() - new Date(deviceKey.lastSeenAt).getTime() < 2 * 60 * 1000;
+}
+
+function isVideoSignalPayload(payload: Record<string, unknown>): payload is VideoSignalPayload {
+  return payload.kind === "video-call" && typeof payload.callId === "string";
+}
+
+function getVideoRtcConfig(relayEnabled: boolean): RTCConfiguration {
+  if (!relayEnabled || !turnRelayAvailable) return p2pConnectionConfig;
+  return {
+    iceServers: [
+      ...(p2pConnectionConfig.iceServers ?? []),
+      {
+        urls: turnUrls,
+        username: turnUsername,
+        credential: turnCredential,
+      },
+    ],
+  };
 }
 
 function loadState(): CommunityState {

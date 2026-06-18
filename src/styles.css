@@ -1823,6 +1823,220 @@ button:disabled {
   font-size: 13px;
 }
 
+.video-room-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.video-control-panel {
+  gap: 10px;
+}
+
+.video-safety-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.video-safety-grid span {
+  min-height: 28px;
+  padding: 7px 8px;
+  color: #ffe5ee;
+  background: #302532;
+  border: 1px solid #4a3647;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.video-participant-list {
+  margin-bottom: 0;
+  border-color: #3b394f;
+}
+
+.video-participant-list .member-check {
+  min-height: 42px;
+  color: #fff5f8;
+  background: #181821;
+  border-color: #343349;
+}
+
+.video-participant-list .member-check.disabled {
+  opacity: 0.55;
+}
+
+.video-participant-list .member-check .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+}
+
+.video-participant-list .member-check span {
+  display: grid;
+  gap: 1px;
+}
+
+.video-participant-list .member-check small {
+  color: #c9b6c0;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.relay-toggle {
+  margin-top: 2px;
+  color: #fff5f8;
+}
+
+.relay-toggle.disabled {
+  opacity: 0.62;
+}
+
+.video-relay-note {
+  margin: -2px 0 0;
+  color: #c9b6c0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.video-stage {
+  display: grid;
+  gap: 12px;
+  min-height: 460px;
+}
+
+.video-stage-header,
+.video-stage-header > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.video-stage-header > div {
+  justify-content: flex-start;
+}
+
+.video-stage-header h3,
+.video-stage-header p {
+  margin: 0;
+}
+
+.video-stage-header h3 {
+  color: #fff5f8;
+  font-size: 16px;
+}
+
+.video-stage-header p {
+  color: #c9b6c0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.incoming-call-list {
+  display: grid;
+  gap: 8px;
+}
+
+.incoming-call-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  background: #2b2431;
+  border: 1px solid #4a3647;
+  border-radius: 8px;
+}
+
+.incoming-call-card strong,
+.incoming-call-card p {
+  margin: 0;
+}
+
+.incoming-call-card strong {
+  color: #fff5f8;
+}
+
+.incoming-call-card p {
+  color: #d7c8d1;
+  font-size: 12px;
+}
+
+.incoming-call-card > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.video-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+
+.video-tile {
+  position: relative;
+  overflow: hidden;
+  min-height: 210px;
+  background: #14141d;
+  border: 1px solid #35344a;
+  border-radius: 8px;
+}
+
+.video-tile video,
+.video-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 210px;
+  object-fit: cover;
+}
+
+.video-placeholder {
+  display: grid;
+  place-items: center;
+  color: #f2b1c9;
+  background:
+    linear-gradient(135deg, rgba(242, 177, 201, 0.1), rgba(70, 58, 82, 0.16)),
+    #14141d;
+}
+
+.video-tile footer {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 6px 8px;
+  color: #fff7fb;
+  background: rgba(20, 20, 29, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.video-tile footer strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-tile footer span {
+  flex: 0 0 auto;
+  color: #f2b1c9;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .provocation-card {
   min-height: 96px;
   align-content: center;
@@ -2164,6 +2378,7 @@ button:disabled {
   .profile-layout,
   .events-layout,
   .nocturno-grid,
+  .video-room-layout,
   .docs-layout,
   .admin-grid,
   .admin-grid.wide-left,
@@ -2875,6 +3090,7 @@ button:disabled {
   .profile-layout,
   .events-layout,
   .nocturno-grid,
+  .video-room-layout,
   .chat-layout,
   .docs-layout,
   .admin-grid,
@@ -2902,6 +3118,21 @@ button:disabled {
 
   .nocturno-shell {
     padding: 7px;
+  }
+
+  .video-safety-grid,
+  .video-tile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .video-stage {
+    min-height: 0;
+  }
+
+  .video-tile,
+  .video-tile video,
+  .video-placeholder {
+    min-height: 190px;
   }
 
   .nocturno-card,

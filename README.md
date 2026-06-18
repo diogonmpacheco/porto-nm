@@ -137,6 +137,10 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - **Tensão mútua** ligada ao interesse recíproco de flirt.
 - **Fantasias** com mood, limites, modo e aftercare.
 - **Confessionário** com partilha anónima ou assinada.
+- **Vídeo privado** para salas peer-to-peer entre pessoas convidadas e com aceitação explícita.
+- Nas salas de vídeo, a câmara/microfone só abrem depois de acção directa da pessoa.
+- Media de vídeo/áudio não é guardada, não é analisada e não passa pelos servidores da aplicação em modo directo.
+- Relay de media existe apenas se TURN estiver configurado e se a pessoa activar a opção explicitamente.
 
 ### Cuidado
 
@@ -170,6 +174,8 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Novas mensagens de texto/citação guardadas como envelopes cifrados em `messages.encrypted_payloads`.
 - Media nova guardada cifrada, com chave/IV só dentro do envelope cifrado por dispositivo.
 - Sinalização WebRTC curta em `p2p_signals`; o conteúdo da conversa não passa por esta tabela.
+- Salas de vídeo usam WebRTC com media cifrada em trânsito pelo browser.
+- Para vídeo, o servidor só transporta convites/offer/answer/ICE temporários; áudio e imagem não são persistidos.
 - Admins conseguem moderar e apagar mensagens cifradas, mas não ler o conteúdo se não tiverem a chave do dispositivo destinatário.
 - Migrations versionadas em `supabase/migrations/`.
 
@@ -219,6 +225,14 @@ Variáveis necessárias em `.env.local` e na Vercel:
 ```bash
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-public-anon-key
+```
+
+Variáveis opcionais para relay de vídeo, apenas quando se quiser permitir TURN:
+
+```bash
+VITE_TURN_URLS=turn:turn.example.com:3478
+VITE_TURN_USERNAME=username
+VITE_TURN_CREDENTIAL=password
 ```
 
 ## Deploy e base de dados
