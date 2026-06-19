@@ -1099,6 +1099,407 @@ const uiCopy: Record<
 type AppCopy = (typeof uiCopy)["pt"];
 type FeedCopy = AppCopy["feed"];
 
+const englishUiTranslations: Record<string, string> = {
+  "entra.": "enter.",
+  "com sentimento": "with feeling",
+  "Entrar": "Log in",
+  "Criar conta": "Create account",
+  "Email ou acesso de teste": "Email or test access",
+  "Palavra-passe": "Password",
+  "Aguarda": "Wait",
+  "Sair": "Sign out",
+  "Repor exemplo": "Reset demo",
+  "Conta": "Account",
+  "Ver como": "View as",
+  "Navegação principal": "Main navigation",
+  "Estado da comunidade": "Community status",
+  "a ligar": "connecting",
+  "a guardar": "saving",
+  "erro sync": "sync error",
+  cifrado: "encrypted",
+  privado: "private",
+  local: "local",
+  Link: "Link",
+
+  Hoje: "Today",
+  Mural: "Feed",
+  Chat: "Chat",
+  Agenda: "Calendar",
+  Comunidade: "Community",
+  Memória: "Memory",
+  Nocturno: "Nocturnal",
+  Cuidado: "Care",
+  "Admin e moderação": "Admin and moderation",
+
+  Membros: "Members",
+  "Eventos marcados": "Scheduled events",
+  Decisões: "Decisions",
+  "Novas entradas": "New entries",
+  "Próximos eventos": "Upcoming events",
+  Gerir: "Manage",
+  Apadrinhamento: "Sponsorship",
+  Entrada: "Entry",
+  "raiz da comunidade": "community root",
+  convite: "invite",
+  secreto: "secret",
+  aberto: "open",
+  "nova pessoa": "new person",
+  membro: "member",
+  membros: "members",
+  "vinc.": "links",
+  admin: "admin",
+  "jan.": "Jan",
+  "fev.": "Feb",
+  "mar.": "Mar",
+  "abr.": "Apr",
+  "mai.": "May",
+  "jun.": "Jun",
+  "jul.": "Jul",
+  "ago.": "Aug",
+  "set.": "Sep",
+  "out.": "Oct",
+  "nov.": "Nov",
+  "dez.": "Dec",
+
+  "Novo no mural": "New feed post",
+  Tipo: "Type",
+  nota: "note",
+  pergunta: "question",
+  poll: "poll",
+  media: "media",
+  "eco de evento": "event echo",
+  "Visível para": "Visible to",
+  comunidade: "community",
+  grupo: "group",
+  conexões: "connections",
+  "Título opcional": "Optional title",
+  Texto: "Text",
+  Tags: "Tags",
+  Publicar: "Publish",
+  todos: "all",
+  perguntas: "questions",
+  eventos: "events",
+  meus: "mine",
+  gosto: "like",
+  faísca: "spark",
+  também: "same",
+  Silenciar: "Mute",
+  Silenciado: "Muted",
+  silenciar: "mute",
+  silenciado: "muted",
+  Bloquear: "Block",
+  bloqueado: "blocked",
+  bloquear: "block",
+  Comentar: "Comment",
+  "Responder com contexto": "Reply with context",
+  "Radar social": "Social radar",
+  Pessoa: "Person",
+  "Eliminar publicação": "Delete post",
+
+  Salas: "Rooms",
+  "Nova sala": "New room",
+  "Criar sala": "Create room",
+  "Alternar ligação": "Toggle connection",
+  "Documentos disponíveis": "Available documents",
+  "Copiar código": "Copy code",
+  "Expiração da imagem": "Image expiry",
+  "Imagem": "Image",
+  "Imagem já aberta": "Image already opened",
+  "Imagem indisponível": "Image unavailable",
+  "ver uma vez": "view once",
+  "pedir consentimento": "ask consent",
+  "sem impressão": "no fingerprint",
+
+  Perfil: "Profile",
+  Conexões: "Connections",
+  Grupos: "Groups",
+  Entradas: "Entries",
+  Compersão: "Compersion",
+  Fotografia: "Photo",
+  Nome: "Name",
+  Pronomes: "Pronouns",
+  Presença: "Presence",
+  offline: "offline",
+  "Dispositivos deste perfil": "Devices on this profile",
+  "Cartão e preferências": "Card and preferences",
+  "Disponível para": "Available for",
+  Limites: "Limits",
+  "Media íntima": "Intimate media",
+  "Contexto relacional": "Relationship context",
+  Eventos: "Events",
+  "Guardar perfil": "Save profile",
+  Intenções: "Intentions",
+  Intros: "Intros",
+  Interesses: "Interests",
+  Rede: "Network",
+  Privacidade: "Privacy",
+  Nota: "Note",
+  Atualizar: "Update",
+  "sem nota": "no note",
+  "por preencher": "not filled",
+  amizades: "friendships",
+  dates: "dates",
+  flirt: "flirt",
+  "indisponível": "unavailable",
+  "só intro": "intro only",
+  "Apresentação quente": "Warm introduction",
+  Ponte: "Bridge",
+  Contexto: "Context",
+  "Pedir intro": "Request intro",
+  Pedidos: "Requests",
+  aceite: "accepted",
+  recusado: "declined",
+  "Interesse mútuo": "Mutual interest",
+  amizade: "friendship",
+  date: "date",
+  evento: "event",
+  Constelação: "Constellation",
+  Visibilidade: "Visibility",
+  Ligação: "Connection",
+  Adicionar: "Add",
+  "Remover ligação": "Remove connection",
+  "Rede de confiança": "Trust network",
+  seguir: "follow",
+  confiar: "trust",
+  amigue: "friend",
+  "Firewall pessoal": "Personal firewall",
+  "Sem silêncios ou bloqueios activos.": "No active mutes or blocks.",
+  "Remover limite": "Remove limit",
+  "Fundação P2P": "P2P foundation",
+  "Mensagens só no dispositivo": "Device-only messages",
+  "Cofre local de media": "Local media vault",
+  "Remover metadados": "Strip metadata",
+  "Preparado para P2P": "P2P ready",
+  Plano: "Plan",
+  "Guardar fundação": "Save foundation",
+
+  "Novo subgrupo": "New subgroup",
+  Foco: "Focus",
+  Admin: "Admin",
+  "Criar grupo": "Create group",
+  "Entrada por convite": "Invite entry",
+  "Apadrinhade por": "Sponsored by",
+  "Grupos iniciais": "Initial groups",
+  "Vincular entrada": "Link entry",
+  "Novo convite": "New invite",
+  Código: "Code",
+  Copiar: "Copy",
+  "Entrada como": "Entry role",
+  Usos: "Uses",
+  "Criar convite": "Create invite",
+  "sem padrinho": "no sponsor",
+  "Nomes vinculados": "Linked names",
+  "sem convite anterior": "no previous invite",
+  "Cartões de consentimento": "Consent cards",
+  Disponível: "Available",
+  "Atualizar cartão": "Update card",
+  "Apreciação": "Appreciation",
+
+  "Docs e decisões": "Docs and decisions",
+  Acordos: "Agreements",
+  Leituras: "Readings",
+  Rituais: "Rituals",
+  "Novo documento": "New document",
+  "Nova decisão": "New decision",
+  Título: "Title",
+  Resumo: "Summary",
+  Dono: "Owner",
+  Guardar: "Save",
+  Estado: "Status",
+  Resultado: "Outcome",
+  Votos: "Votes",
+  "Copiar acordo": "Copy agreement",
+  "Fotos em eventos íntimos": "Photos at intimate events",
+  "Apresentações quentes": "Warm introductions",
+  "precisa decisão": "needs decision",
+  "Antes de um date": "Before a date",
+  "Antes de enviar media": "Before sending media",
+  "Depois de uma festa": "After a party",
+  "Entrada nova": "New entry",
+
+  Eroteca: "Erotica library",
+  Provocações: "Provocations",
+  "Tensão mútua": "Mutual tension",
+  Fantasias: "Fantasies",
+  Confessionário: "Confessional",
+  "Vídeo privado": "Private video",
+  "Novo link": "New link",
+  URL: "URL",
+  Aviso: "Warning",
+  "Porque vale a pena": "Why it is worth it",
+  "Guardar link": "Save link",
+  abrir: "open",
+  Eliminar: "Delete",
+  "Nova provocação": "New provocation",
+  Frase: "Phrase",
+  Lançar: "Launch",
+  "aberto a conversa": "open to talk",
+  "só leitura": "read only",
+  "Sinal enviado": "Signal sent",
+  "Tenho curiosidade": "I am curious",
+  "Nova fantasia": "New fantasy",
+  Mood: "Mood",
+  Modo: "Mode",
+  "só partilhar": "share only",
+  "quero conversar": "want to talk",
+  "quero explorar": "want to explore",
+  Aftercare: "Aftercare",
+  "Nova confissão": "New confession",
+  assinar: "sign",
+  "só partilha": "share only",
+  Confissão: "Confession",
+  Anónimo: "Anonymous",
+
+  "Salas privadas": "Private rooms",
+  "Sala privada": "Private room",
+  "Criar sala privada": "Create private room",
+  "Convites recebidos": "Received invites",
+  Câmara: "Camera",
+  Microfone: "Microphone",
+  "Abrir câmara": "Open camera",
+  "Fechar sala": "Close room",
+  "Ecrã inteiro": "Full screen",
+  Grelha: "Grid",
+
+  CheckIns: "Check-ins",
+  "Check-ins": "Check-ins",
+  "Ciúme Lab": "Jealousy Lab",
+  Reparação: "Repair",
+  "Saúde sexual": "Sexual health",
+  Mediação: "Mediation",
+  "O que aconteceu": "What happened",
+  "A história que estou a contar": "The story I am telling myself",
+  "Preciso de": "I need",
+  reasseguramento: "reassurance",
+  espaço: "space",
+  informação: "information",
+  toque: "touch",
+  reparação: "repair",
+  "Partilhar com": "Share with",
+  "só eu": "only me",
+  Relatórios: "Reports",
+  "Pedir ajuda": "Ask for help",
+  Categoria: "Category",
+  Severidade: "Severity",
+  Detalhes: "Details",
+  Enviar: "Send",
+  triagem: "triage",
+  resolvido: "resolved",
+  arquivado: "archived",
+  baixa: "low",
+  média: "medium",
+  alta: "high",
+  urgente: "urgent",
+  assédio: "harassment",
+  consentimento: "consent",
+  conteúdo: "content",
+  segurança: "safety",
+  outro: "other",
+
+  "Novo evento": "New event",
+  Calendário: "Calendar",
+  "eventos marcados": "scheduled events",
+  "Check-in pós-evento": "Post-event check-in",
+  Evento: "Event",
+  escolher: "choose",
+  "Como ficou": "How it felt",
+  bem: "good",
+  misto: "mixed",
+  atenção: "attention",
+  admins: "admins",
+  padrinhe: "sponsor",
+  Local: "Place",
+  Capacidade: "Capacity",
+  "Política de fotos": "Photo policy",
+  "Notas de limites": "Boundary notes",
+  "Prompt de aftercare": "Aftercare prompt",
+  "Criar evento": "Create event",
+  "Sala temporária": "Temporary room",
+  "Salas temporárias": "Temporary rooms",
+  "Nova sala temporária": "New temporary room",
+  Expira: "Expires",
+  Propósito: "Purpose",
+  Participantes: "Attendees",
+  Presente: "Present",
+  Confirmar: "Confirm",
+  "perguntar primeiro": "ask first",
+  "sem fotos": "no photos",
+  "íntimo": "intimate",
+  "Confirmar presença": "RSVP",
+  "Cancelar presença": "Cancel RSVP",
+
+  "Fila de moderação": "Moderation queue",
+  "Nova entrada": "New entry",
+  por: "by",
+  "Faltam limites, disponibilidade ou media.": "Limits, availability or media are missing.",
+  Padrinhe: "Sponsor",
+  Aceitar: "Accept",
+  "Saúde da plataforma": "Platform health",
+  "salas temporárias activas": "active temporary rooms",
+  "contas suspensas": "suspended accounts",
+  "media sensível": "sensitive media",
+  "eventos no limite": "events at capacity",
+  "convites esgotados": "used-up invites",
+  "Remoção de metadados": "Metadata stripping",
+  "Pronto para P2P": "Ready for P2P",
+  "Casos de segurança": "Safety cases",
+  Auditoria: "Audit",
+  "Membros e papéis": "Members and roles",
+  "Pôr offline": "Set offline",
+  "Pôr online": "Set online",
+  "Suspender 24h": "Suspend 24h",
+  raiz: "root",
+  grupos: "groups",
+  "limites por preencher": "limits missing",
+  "Casos abertos": "Open cases",
+  "Itens atenção": "Attention items",
+  "Nada urgente neste momento.": "Nothing urgent right now.",
+  "Sem casos abertos.": "No open cases.",
+  "Sem registos ainda.": "No records yet.",
+  Triagem: "Triage",
+  "Itens sensíveis": "Sensitive items",
+  "Salas activas": "Active rooms",
+  "Convites usados": "Used invites",
+  "Contas suspensas": "Suspended accounts",
+  "Alterar papel": "Change role",
+  Suspender: "Suspend",
+  "Remover suspensão": "Remove suspension",
+  "Audit log": "Audit log",
+};
+
+const englishUiPatterns: Array<[RegExp, string]> = [
+  [/^(\d+) membros$/u, "$1 members"],
+  [/^(\d+) membro$/u, "$1 member"],
+  [/^(\d+) grupos$/u, "$1 groups"],
+  [/^(\d+) grupo$/u, "$1 group"],
+  [/^(\d+) eventos marcados$/u, "$1 scheduled events"],
+  [/^(\d+) publicações$/u, "$1 posts"],
+  [/^(\d+) publicação$/u, "$1 post"],
+  [/^(\d+) vinc\.$/u, "$1 links"],
+  [/^(\d+) online$/u, "$1 online"],
+  [/^(\d+) bem$/u, "$1 good"],
+  [/^(\d+) misto$/u, "$1 mixed"],
+  [/^(\d+) atenção$/u, "$1 attention"],
+  [/^(\d+) visíveis para (.+)$/u, "$1 visible to $2"],
+  [/^convidade por (.+)$/u, "invited by $1"],
+  [/^Admin: (.+)$/u, "Admin: $1"],
+  [/^Ponte: (.+)$/u, "Bridge: $1"],
+  [/^Padrinhe: (.+)$/u, "Sponsor: $1"],
+  [/^Nova entrada: (.+)$/u, "New entry: $1"],
+  [/^(.+) pediu apresentação$/u, "$1 requested an introduction"],
+  [/^(.+) marcou bem$/u, "$1 marked good"],
+  [/^(.+) marcou misto$/u, "$1 marked mixed"],
+  [/^(.+) marcou atenção$/u, "$1 marked attention"],
+  [/^(.+) tem cartão incompleto$/u, "$1 has an incomplete card"],
+  [/· por /u, "· by "],
+  [/^(.+) · por (.+) · (\d+) grupos$/u, "$1 · by $2 · $3 groups"],
+  [/^(.+) · por (.+) · (\d+) groups$/u, "$1 · by $2 · $3 groups"],
+  [/^(.+) · raiz · (\d+) grupos$/u, "$1 · root · $2 groups"],
+  [/^(.+) · raiz · (\d+) groups$/u, "$1 · root · $2 groups"],
+  [/^(\d+) bloqueio\(s\) recebidos$/u, "$1 received block(s)"],
+  [/^(\d+) convite\(s\) de vídeo enviados\.$/u, "$1 video invite(s) sent."],
+];
+
 type SyncStatus = "local" | "auth" | "loading" | "connected" | "saving" | "error";
 
 const seedState: CommunityState = {
@@ -1931,6 +2332,7 @@ function App() {
   const usingBackend = Boolean(supabase);
   const [state, setState] = useState<CommunityState>(() => loadState());
   const [language, setLanguage] = useState<Language>(() => loadLanguage());
+  useDocumentTranslations(language);
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(usingBackend);
@@ -11397,6 +11799,94 @@ function loadState(): CommunityState {
 
 function loadLanguage(): Language {
   return localStorage.getItem(languageStoreKey) === "en" ? "en" : "pt";
+}
+
+function useDocumentTranslations(language: Language) {
+  useEffect(() => {
+    if (language !== "en") return undefined;
+
+    let scheduled = false;
+    const root = document.body;
+    const translate = () => {
+      scheduled = false;
+      translateDomTree(root);
+    };
+    const scheduleTranslation = () => {
+      if (scheduled) return;
+      scheduled = true;
+      window.setTimeout(translate, 0);
+    };
+
+    translate();
+    const observer = new MutationObserver(scheduleTranslation);
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["aria-label", "placeholder", "title"],
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [language]);
+}
+
+function translateDomTree(root: ParentNode) {
+  if (root instanceof Element) {
+    translateElementAttributes(root);
+  }
+  root.querySelectorAll("*").forEach((element) => {
+    translateElementAttributes(element);
+  });
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    const parent = node.parentElement;
+    if (parent && !shouldSkipUiTranslation(parent)) {
+      const translated = translateUiText(node.nodeValue ?? "");
+      if (translated !== node.nodeValue) {
+        node.nodeValue = translated;
+      }
+    }
+    node = walker.nextNode();
+  }
+}
+
+function translateElementAttributes(element: Element) {
+  if (shouldSkipUiTranslation(element)) return;
+  ["aria-label", "placeholder", "title"].forEach((attribute) => {
+    const value = element.getAttribute(attribute);
+    if (!value) return;
+    const translated = translateUiText(value);
+    if (translated !== value) {
+      element.setAttribute(attribute, translated);
+    }
+  });
+}
+
+function shouldSkipUiTranslation(element: Element) {
+  return Boolean(
+    element.closest("[data-no-translate]") ||
+      ["SCRIPT", "STYLE", "TEXTAREA"].includes(element.tagName),
+  );
+}
+
+function translateUiText(value: string) {
+  if (!value.trim()) return value;
+  const leading = value.match(/^\s*/u)?.[0] ?? "";
+  const trailing = value.match(/\s*$/u)?.[0] ?? "";
+  const core = value.trim();
+  const exactTranslation = englishUiTranslations[core];
+  if (exactTranslation) return `${leading}${exactTranslation}${trailing}`;
+
+  const patterned = englishUiPatterns.reduce(
+    (current, [pattern, replacement]) => current.replace(pattern, replacement),
+    core,
+  );
+  return patterned === core ? value : `${leading}${patterned}${trailing}`;
 }
 
 function isCommunityState(value: unknown): value is CommunityState {
