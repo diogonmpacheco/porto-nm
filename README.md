@@ -37,7 +37,9 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 
 ### Arquitectura de menus
 
+- Selector **PT/EN** no cabeçalho para a base da experiência internacional.
 - **Hoje**: resumo e atalhos.
+- **Mural**: feed social assíncrono com publicações, comentários, reacções e visibilidade por comunidade/grupo/conexões.
 - **Chat**: salas, media privada e citações.
 - **Agenda**: eventos, salas temporárias, check-ins e aftercare.
 - **Comunidade**: perfil, conexões, subgrupos, entradas e compersão.
@@ -62,6 +64,18 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Sugestões de citações enquanto se escreve.
 - Cópia rápida de códigos de documentos/decisões.
 - Interface mobile simplificada, mais próxima de uma app de mensagens.
+- Pessoas bloqueadas deixam de aparecer no chat da pessoa que bloqueou.
+
+### Mural
+
+- Feed social para quebrar o silêncio sem depender só de chat ao vivo.
+- Publicações por tipo: nota, pergunta, poll, media ou eco de evento.
+- Visibilidade por comunidade, grupo ou conexões.
+- Comentários persistentes.
+- Reacções rápidas: gosto, faísca e também.
+- Filtros para todos, perguntas, eventos e publicações próprias.
+- Acções directas de silenciar ou bloquear a partir de uma publicação.
+- O feed respeita bloqueios, silêncios, grupos e ligações de confiança.
 
 ### Comunidade
 
@@ -119,6 +133,10 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Interesse mútuo por pessoa e tipo de interesse.
 - Indicação de match quando o interesse é recíproco.
 - Constelação de relações/ligações, com visibilidade privada, por conexões ou comunidade.
+- Rede de confiança com sinais de seguir, confiar, amigue e evento.
+- Firewall pessoal com silenciar e bloquear.
+- Bloqueios reduzem visibilidade mútua em mural, Nocturno e chat.
+- Silêncios removem ruído social sem bloquear a pessoa.
 - Fundação P2P: opções de mensagens só no dispositivo, cofre local de media, remoção de metadados e prontidão para P2P.
 
 ### Comunidade e subgrupos
@@ -137,6 +155,9 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - **Tensão mútua** ligada ao interesse recíproco de flirt.
 - **Fantasias** com mood, limites, modo e aftercare.
 - **Confessionário** com partilha anónima ou assinada.
+- Eroteca, provocações, fantasias e confessionário são agora conteúdo persistente, com RLS e realtime.
+- Itens do Nocturno têm visibilidade por comunidade, grupo, conexões ou privado.
+- Autores e admins podem remover itens.
 - **Vídeo privado** para salas peer-to-peer entre pessoas convidadas e com aceitação explícita.
 - Vista de vídeo em grelha estilo reunião, modo foco/pessoa destacada e ecrã inteiro por sala ou por janela.
 - Nas salas de vídeo, a câmara/microfone só abrem depois de acção directa da pessoa.
@@ -172,6 +193,10 @@ A conta `admin` mostra melhor o produto porque consegue ver e gerir mais conteú
 - Realtime activado nas tabelas principais.
 - Storage privado para imagens de chat e fotografias de perfil.
 - Chaves públicas por dispositivo em `device_keys`.
+- Mural persistente em `feed_posts`, `feed_comments` e `feed_reactions`.
+- Rede de confiança em `trust_edges`.
+- Silêncios/bloqueios em `member_boundaries`.
+- Nocturno persistente em `nocturno_items`.
 - Novas mensagens de texto/citação guardadas como envelopes cifrados em `messages.encrypted_payloads`.
 - Media nova guardada cifrada, com chave/IV só dentro do envelope cifrado por dispositivo.
 - Sinalização WebRTC curta em `p2p_signals`; o conteúdo da conversa não passa por esta tabela.
@@ -197,12 +222,17 @@ Também existem exemplos de:
 - salas temporárias;
 - check-ins pós-evento;
 - documentos e decisões citáveis;
+- mural comunitário com perguntas, notas, comentários e reações;
+- sinais de confiança entre membros;
+- conteúdos Nocturno persistentes para Eroteca, provocações, fantasias e confissões;
 - pedidos de apresentação quente;
 - interesses mútuos;
 - constelações de relação;
 - mensagens de chat com citações.
 
-Estes dados são marcados com IDs/códigos `demo_`, `DEMO-`, `DOC-DEMO-` ou `DEC-DEMO-`.
+Estes dados são marcados com IDs/códigos `demo_`, `DEMO-`, `DOC-DEMO-`, `DEC-DEMO-`,
+ou com UUIDs de demo começados por `aaaaaaaa-`, `bbbbbbbb-`, `cccccccc-`,
+`dddddddd-` e `eeeeeeee-`.
 
 Para remover a demonstração mais tarde, usar o script:
 
@@ -269,12 +299,18 @@ npx vercel --prod --yes
 - `docs`
 - `decisions`
 - `messages`
+- `feed_posts`
+- `feed_comments`
+- `feed_reactions`
 - `device_keys`
 - `p2p_signals`
 - `member_intentions`
 - `warm_introductions`
 - `mutual_interests`
 - `relationship_links`
+- `trust_edges`
+- `member_boundaries`
+- `nocturno_items`
 - `privacy_settings`
 
 ## O que ainda falta para parecer produto acabado

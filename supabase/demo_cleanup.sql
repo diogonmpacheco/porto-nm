@@ -4,6 +4,21 @@
 delete from public.messages
 where id like 'demo_msg_%';
 
+delete from public.feed_reactions
+where id::text like 'eeeeeeee-%';
+
+delete from public.feed_comments
+where id::text like 'dddddddd-%';
+
+delete from public.feed_posts
+where id::text like 'aaaaaaaa-%';
+
+delete from public.nocturno_items
+where id::text like 'bbbbbbbb-%';
+
+delete from public.trust_edges
+where id::text like 'cccccccc-%';
+
 delete from public.relationship_links
 where id like 'demo_rel_%';
 

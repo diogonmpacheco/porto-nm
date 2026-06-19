@@ -59,7 +59,7 @@ import {
 type MemberStatus = "online" | "offline";
 type MemberRole = "nova pessoa" | "membro" | "admin";
 type GroupPrivacy = "aberto" | "convite" | "secreto";
-type NavKey = "hoje" | "chat" | "agenda" | "comunidade" | "memoria" | "nocturno" | "cuidado" | "admin";
+type NavKey = "hoje" | "mural" | "chat" | "agenda" | "comunidade" | "memoria" | "nocturno" | "cuidado" | "admin";
 type EventVibe = "social" | "discussão" | "festa" | "íntimo" | "público";
 type PhotoPolicy = "sem fotos" | "perguntar primeiro" | "zonas comuns ok";
 type DecisionStatus = "rascunho" | "aberta" | "decidida";
@@ -73,7 +73,7 @@ type RelationshipVisibility = "privado" | "conexões" | "comunidade";
 type EncryptionStatus = "plain" | "encrypted" | "locked";
 type DeviceSecurityStatus = "off" | "creating" | "ready" | "error";
 type DirectPeerState = "connecting" | "open" | "closed" | "failed";
-type ConnectionTab = "intencoes" | "intros" | "interesses" | "privacidade";
+type ConnectionTab = "intencoes" | "intros" | "interesses" | "rede" | "privacidade";
 type CommunityTab = "perfil" | "conexoes" | "grupos" | "entradas" | "compersao";
 type MemoryTab = "docs" | "acordos" | "leituras" | "rituais";
 type NocturnoTab = "eroteca" | "provocacoes" | "tensao" | "fantasias" | "confessionario" | "video";
@@ -82,6 +82,14 @@ type VideoRoomMode = "gallery" | "focus";
 type ReportCategory = "assedio" | "consentimento" | "conteudo" | "seguranca" | "outro";
 type ReportSeverity = "baixa" | "media" | "alta" | "urgente";
 type ReportStatus = "aberto" | "triagem" | "resolvido" | "arquivado";
+type Language = "pt" | "en";
+type FeedPostKind = "nota" | "pergunta" | "poll" | "media" | "evento";
+type FeedVisibility = "comunidade" | "grupo" | "conexoes";
+type FeedReactionKind = "heart" | "spark" | "same";
+type TrustEdgeKind = "seguir" | "confiar" | "amigue" | "evento";
+type MemberBoundaryKind = "mute" | "block";
+type NocturnoKind = "eroteca" | "provocacao" | "fantasia" | "confissao";
+type NocturnoVisibility = "comunidade" | "grupo" | "conexoes" | "privado";
 
 type Member = {
   id: string;
@@ -180,10 +188,16 @@ type CommunityState = {
   docs: CommunityDoc[];
   decisions: DecisionRecord[];
   eventCheckIns: EventCheckIn[];
+  feedPosts: FeedPost[];
+  feedComments: FeedComment[];
+  feedReactions: FeedReaction[];
   intentions: MemberIntention[];
   introductions: WarmIntroduction[];
   interests: MutualInterest[];
   relationships: RelationshipLink[];
+  trustEdges: TrustEdge[];
+  memberBoundaries: MemberBoundary[];
+  nocturnoItems: NocturnoItem[];
   privacySettings: PrivacySettings;
   messages: ChatMessage[];
   reports: SafetyReport[];
@@ -215,6 +229,74 @@ type AdminAuditLog = {
   targetId: string;
   metadata: Record<string, unknown>;
   createdAt: string;
+};
+
+type FeedPost = {
+  id: string;
+  authorId: string;
+  groupId: string | null;
+  kind: FeedPostKind;
+  visibility: FeedVisibility;
+  title: string;
+  body: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+type FeedComment = {
+  id: string;
+  postId: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+};
+
+type FeedReaction = {
+  id: string;
+  postId: string;
+  memberId: string;
+  kind: FeedReactionKind;
+  createdAt: string;
+};
+
+type TrustEdge = {
+  id: string;
+  fromId: string;
+  toId: string;
+  kind: TrustEdgeKind;
+  note: string;
+  createdAt: string;
+};
+
+type MemberBoundary = {
+  id: string;
+  actorId: string;
+  targetId: string;
+  kind: MemberBoundaryKind;
+  reason: string;
+  createdAt: string;
+};
+
+type NocturnoItem = {
+  id: string;
+  kind: NocturnoKind;
+  authorId: string | null;
+  groupId: string | null;
+  visibility: NocturnoVisibility;
+  title: string;
+  body: string;
+  url: string;
+  tags: string[];
+  warning: string;
+  mood: string;
+  mode: string;
+  limits: string;
+  aftercare: string;
+  signed: boolean;
+  openToTalk: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type EncryptedPayload = {
@@ -473,6 +555,35 @@ type EventCheckInRow = {
   created_at: string;
 };
 
+type FeedPostRow = {
+  id: string;
+  author_id: string;
+  group_id: string | null;
+  kind: FeedPostKind;
+  visibility: FeedVisibility;
+  title: string | null;
+  body: string;
+  tags: string[] | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type FeedCommentRow = {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+};
+
+type FeedReactionRow = {
+  id: string;
+  post_id: string;
+  member_id: string;
+  kind: FeedReactionKind;
+  created_at: string;
+};
+
 type IntentionRow = {
   member_id: string;
   kinds: IntentionKind[] | null;
@@ -505,6 +616,45 @@ type RelationshipRow = {
   label: string;
   visibility: RelationshipVisibility;
   created_at: string;
+};
+
+type TrustEdgeRow = {
+  id: string;
+  from_id: string;
+  to_id: string;
+  kind: TrustEdgeKind;
+  note: string | null;
+  created_at: string;
+};
+
+type MemberBoundaryRow = {
+  id: string;
+  actor_id: string;
+  target_id: string;
+  kind: MemberBoundaryKind;
+  reason: string | null;
+  created_at: string;
+};
+
+type NocturnoItemRow = {
+  id: string;
+  kind: NocturnoKind;
+  author_id: string | null;
+  group_id: string | null;
+  visibility: NocturnoVisibility;
+  title: string | null;
+  body: string | null;
+  url: string | null;
+  tags: string[] | null;
+  warning: string | null;
+  mood: string | null;
+  mode: string | null;
+  limits: string | null;
+  aftercare: string | null;
+  signed: boolean | null;
+  open_to_talk: boolean | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type PrivacySettingsRow = {
@@ -653,6 +803,7 @@ type DirectPeerConnection = {
 };
 
 const storeKey = "porto-nm-community-v1";
+const languageStoreKey = "porto-nm-language";
 const p2pConnectionConfig: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -673,10 +824,16 @@ const communityRealtimeTables = [
   "docs",
   "decisions",
   "event_checkins",
+  "feed_posts",
+  "feed_comments",
+  "feed_reactions",
   "member_intentions",
   "warm_introductions",
   "mutual_interests",
   "relationship_links",
+  "trust_edges",
+  "member_boundaries",
+  "nocturno_items",
   "privacy_settings",
   "messages",
   "invite_codes",
@@ -751,6 +908,196 @@ const reportStatusOptions = (Object.keys(reportStatusLabels) as ReportStatus[]).
   value,
   label: reportStatusLabels[value],
 }));
+
+const feedKindLabels: Record<FeedPostKind, string> = {
+  nota: "nota",
+  pergunta: "pergunta",
+  poll: "poll",
+  media: "media",
+  evento: "evento",
+};
+
+const feedVisibilityLabels: Record<FeedVisibility, string> = {
+  comunidade: "comunidade",
+  grupo: "grupo",
+  conexoes: "conexões",
+};
+
+const feedReactionLabels: Record<FeedReactionKind, string> = {
+  heart: "gosto",
+  spark: "faísca",
+  same: "também",
+};
+
+const trustEdgeLabels: Record<TrustEdgeKind, string> = {
+  seguir: "seguir",
+  confiar: "confiar",
+  amigue: "amigue",
+  evento: "evento",
+};
+
+const boundaryLabels: Record<MemberBoundaryKind, string> = {
+  mute: "silenciar",
+  block: "bloquear",
+};
+
+const uiCopy: Record<
+  Language,
+  {
+    brandSubtitle: string;
+    nav: Record<NavKey, string>;
+    auth: {
+      loading: string;
+      preparing: string;
+      login: string;
+      signup: string;
+      email: string;
+      password: string;
+      submitLogin: string;
+      submitSignup: string;
+    };
+    topbar: {
+      link: string;
+      online: string;
+      members: string;
+      copied: string;
+      switchLanguage: string;
+    };
+    feed: {
+      composerTitle: string;
+      publish: string;
+      title: string;
+      body: string;
+      tags: string;
+      visibility: string;
+      kind: string;
+      group: string;
+      filters: Record<"todos" | "perguntas" | "eventos" | "meus", string>;
+      comment: string;
+      commentPlaceholder: string;
+      mute: string;
+      muted: string;
+      block: string;
+      empty: string;
+      radar: string;
+      countLabel: string;
+    };
+  }
+> = {
+  pt: {
+    brandSubtitle: "com sentimento",
+    nav: {
+      hoje: "Hoje",
+      mural: "Mural",
+      chat: "Chat",
+      agenda: "Agenda",
+      comunidade: "Comunidade",
+      memoria: "Memória",
+      nocturno: "Nocturno",
+      cuidado: "Cuidado",
+      admin: "Admin",
+    },
+    auth: {
+      loading: "A abrir comunidade",
+      preparing: "A preparar a ligação segura à comunidade.",
+      login: "Entrar",
+      signup: "Criar conta",
+      email: "Email ou acesso de teste",
+      password: "Palavra-passe",
+      submitLogin: "Entrar",
+      submitSignup: "Criar conta",
+    },
+    topbar: {
+      link: "Link",
+      online: "online",
+      members: "membros",
+      copied: "Link da app copiado.",
+      switchLanguage: "EN",
+    },
+    feed: {
+      composerTitle: "Novo no mural",
+      publish: "Publicar",
+      title: "Título opcional",
+      body: "Texto",
+      tags: "Tags",
+      visibility: "Visível para",
+      kind: "Tipo",
+      group: "Grupo",
+      filters: {
+        todos: "todos",
+        perguntas: "perguntas",
+        eventos: "eventos",
+        meus: "meus",
+      },
+      comment: "Comentar",
+      commentPlaceholder: "Responder com contexto",
+      mute: "Silenciar",
+      muted: "Silenciado",
+      block: "Bloquear",
+      empty: "O mural ainda está silencioso. Uma pergunta pequena costuma abrir mais portas do que um anúncio grande.",
+      radar: "Radar social",
+      countLabel: "publicações",
+    },
+  },
+  en: {
+    brandSubtitle: "with feeling",
+    nav: {
+      hoje: "Today",
+      mural: "Feed",
+      chat: "Chat",
+      agenda: "Calendar",
+      comunidade: "Community",
+      memoria: "Memory",
+      nocturno: "Nocturnal",
+      cuidado: "Care",
+      admin: "Admin",
+    },
+    auth: {
+      loading: "Opening community",
+      preparing: "Preparing the secure community connection.",
+      login: "Log in",
+      signup: "Create account",
+      email: "Email or test access",
+      password: "Password",
+      submitLogin: "Log in",
+      submitSignup: "Create account",
+    },
+    topbar: {
+      link: "Link",
+      online: "online",
+      members: "members",
+      copied: "App link copied.",
+      switchLanguage: "PT",
+    },
+    feed: {
+      composerTitle: "New feed post",
+      publish: "Publish",
+      title: "Optional title",
+      body: "Text",
+      tags: "Tags",
+      visibility: "Visible to",
+      kind: "Type",
+      group: "Group",
+      filters: {
+        todos: "all",
+        perguntas: "questions",
+        eventos: "events",
+        meus: "mine",
+      },
+      comment: "Comment",
+      commentPlaceholder: "Reply with context",
+      mute: "Mute",
+      muted: "Muted",
+      block: "Block",
+      empty: "The feed is still quiet. A small question usually opens more doors than a big announcement.",
+      radar: "Social radar",
+      countLabel: "posts",
+    },
+  },
+};
+
+type AppCopy = (typeof uiCopy)["pt"];
+type FeedCopy = AppCopy["feed"];
 
 type SyncStatus = "local" | "auth" | "loading" | "connected" | "saving" | "error";
 
@@ -1128,6 +1475,79 @@ const seedState: CommunityState = {
       createdAt: "2026-07-06T11:00:00",
     },
   ],
+  feedPosts: [
+    {
+      id: "feed_1",
+      authorId: "m_di",
+      groupId: "g_geral",
+      kind: "pergunta",
+      visibility: "comunidade",
+      title: "O que vos ajudaria a quebrar o silêncio?",
+      body:
+        "Quero testar uma rotina semanal simples: uma pergunta leve, uma chamada para eventos e uma memória/decisão em destaque. O que faria isto parecer vivo sem parecer obrigatório?",
+      tags: ["ritmo", "participação", "comunidade"],
+      createdAt: "2026-06-19T08:30:00",
+      updatedAt: "2026-06-19T08:30:00",
+    },
+    {
+      id: "feed_2",
+      authorId: "demo_carolina",
+      groupId: "g_eventos",
+      kind: "nota",
+      visibility: "grupo",
+      title: "Procuro companhia para ir à caminhada",
+      body:
+        "Tenho vontade de ir, mas ajuda-me chegar com alguém. Alguém quer combinar antes e entrar em modo dupla de coragem?",
+      tags: ["eventos", "entrada-suave"],
+      createdAt: "2026-06-19T09:10:00",
+      updatedAt: "2026-06-19T09:10:00",
+    },
+    {
+      id: "feed_3",
+      authorId: "demo_ines",
+      groupId: "g_cuidados",
+      kind: "evento",
+      visibility: "grupo",
+      title: "Aftercare não é burocracia",
+      body:
+        "O check-in pós-evento está a mostrar coisas que no WhatsApp se perdiam. Para mim isto é a diferença entre encontro e comunidade.",
+      tags: ["aftercare", "cuidados", "memória"],
+      createdAt: "2026-06-19T10:05:00",
+      updatedAt: "2026-06-19T10:05:00",
+    },
+  ],
+  feedComments: [
+    {
+      id: "feed_comment_1",
+      postId: "feed_1",
+      authorId: "m_ana",
+      body: "Uma pergunta semanal com respostas curtas parece-me muito menos intimidante do que abrir conversa do zero.",
+      createdAt: "2026-06-19T08:44:00",
+    },
+    {
+      id: "feed_comment_2",
+      postId: "feed_2",
+      authorId: "demo_joao",
+      body: "Eu vou de metro. Posso combinar chegada e apresentar-te ao grupo antes da caminhada.",
+      createdAt: "2026-06-19T09:22:00",
+    },
+  ],
+  feedReactions: [
+    {
+      id: "feed_reaction_1",
+      postId: "feed_1",
+      memberId: "demo_ines",
+      kind: "spark",
+      createdAt: "2026-06-19T08:51:00",
+    },
+    {
+      id: "feed_reaction_2",
+      postId: "feed_2",
+      memberId: "m_lia",
+      kind: "same",
+      createdAt: "2026-06-19T09:26:00",
+    },
+  ],
   intentions: [
     {
       memberId: "m_di",
@@ -1290,6 +1710,115 @@ const seedState: CommunityState = {
       createdAt: "2026-06-18T12:55:00",
     },
   ],
+  trustEdges: [
+    {
+      id: "trust_1",
+      fromId: "m_lia",
+      toId: "m_di",
+      kind: "confiar",
+      note: "Pessoa de referência para primeiras dúvidas.",
+      createdAt: "2026-06-18T16:10:00",
+    },
+    {
+      id: "trust_2",
+      fromId: "demo_rita",
+      toId: "demo_ines",
+      kind: "confiar",
+      note: "Ponte para eventos e apresentações.",
+      createdAt: "2026-06-18T16:15:00",
+    },
+    {
+      id: "trust_3",
+      fromId: "demo_carolina",
+      toId: "demo_joao",
+      kind: "evento",
+      note: "Boa pessoa para combinar chegada a eventos.",
+      createdAt: "2026-06-18T16:20:00",
+    },
+  ],
+  memberBoundaries: [],
+  nocturnoItems: [
+    {
+      id: "noct_ero_1",
+      kind: "eroteca",
+      authorId: "demo_carolina",
+      groupId: "g_geral",
+      visibility: "comunidade",
+      title: "Erika Lust - cinema adulto ético",
+      body: "Boa curadoria, diversidade de corpos e contexto. Melhor para conversa do que para consumo rápido.",
+      url: "https://erikalust.com",
+      tags: ["ético", "cinema", "queer"],
+      warning: "conteúdo explícito",
+      mood: "",
+      mode: "",
+      limits: "",
+      aftercare: "",
+      signed: true,
+      openToTalk: true,
+      createdAt: "2026-06-18T17:00:00",
+      updatedAt: "2026-06-18T17:00:00",
+    },
+    {
+      id: "noct_prov_1",
+      kind: "provocacao",
+      authorId: "m_ana",
+      groupId: null,
+      visibility: "comunidade",
+      title: "Provocação da semana",
+      body: "O meu sim mais bonito começa quando...",
+      url: "",
+      tags: ["prompt", "desejo"],
+      warning: "",
+      mood: "",
+      mode: "conversa",
+      limits: "",
+      aftercare: "",
+      signed: true,
+      openToTalk: true,
+      createdAt: "2026-06-18T17:05:00",
+      updatedAt: "2026-06-18T17:05:00",
+    },
+    {
+      id: "noct_fan_1",
+      kind: "fantasia",
+      authorId: "demo_nuno",
+      groupId: "g_geral",
+      visibility: "conexoes",
+      title: "Lento, vestido, sem pressa",
+      body: "Uma fantasia de tensão suave em que a conversa é mais explícita do que o toque.",
+      url: "",
+      tags: ["lento", "tensão"],
+      warning: "fantasia explícita",
+      mood: "tensão suave",
+      mode: "quero conversar",
+      limits: "sem surpresa, sem público",
+      aftercare: "mensagem no dia seguinte",
+      signed: true,
+      openToTalk: true,
+      createdAt: "2026-06-18T17:10:00",
+      updatedAt: "2026-06-18T17:10:00",
+    },
+    {
+      id: "noct_conf_1",
+      kind: "confissao",
+      authorId: "demo_rita",
+      groupId: null,
+      visibility: "comunidade",
+      title: "Confissão",
+      body: "Às vezes excita-me mais a conversa honesta antes do toque do que o toque em si.",
+      url: "",
+      tags: ["confissão"],
+      warning: "conteúdo íntimo",
+      mood: "",
+      mode: "só partilhar",
+      limits: "",
+      aftercare: "",
+      signed: false,
+      openToTalk: true,
+      createdAt: "2026-06-18T17:15:00",
+      updatedAt: "2026-06-18T17:15:00",
+    },
+  ],
   privacySettings: {
     deviceOnlyMessages: false,
     localMediaVault: true,
@@ -1401,6 +1930,7 @@ const seedState: CommunityState = {
 function App() {
   const usingBackend = Boolean(supabase);
   const [state, setState] = useState<CommunityState>(() => loadState());
+  const [language, setLanguage] = useState<Language>(() => loadLanguage());
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(usingBackend);
@@ -1440,10 +1970,16 @@ function App() {
       docsResult,
       decisionsResult,
       checkInsResult,
+      feedPostsResult,
+      feedCommentsResult,
+      feedReactionsResult,
       intentionsResult,
       introductionsResult,
       interestsResult,
       relationshipsResult,
+      trustEdgesResult,
+      memberBoundariesResult,
+      nocturnoItemsResult,
       privacyResult,
       messagesResult,
       invitesResult,
@@ -1460,10 +1996,16 @@ function App() {
       supabase.from("docs").select("*").order("updated_at", { ascending: false }),
       supabase.from("decisions").select("*").order("created_at", { ascending: false }),
       supabase.from("event_checkins").select("*").order("created_at", { ascending: false }),
+      supabase.from("feed_posts").select("*").order("created_at", { ascending: false }).limit(120),
+      supabase.from("feed_comments").select("*").order("created_at", { ascending: true }).limit(240),
+      supabase.from("feed_reactions").select("*").order("created_at", { ascending: false }).limit(400),
       supabase.from("member_intentions").select("*").order("updated_at", { ascending: false }),
       supabase.from("warm_introductions").select("*").order("created_at", { ascending: false }),
       supabase.from("mutual_interests").select("*").order("created_at", { ascending: false }),
       supabase.from("relationship_links").select("*").order("created_at", { ascending: false }),
+      supabase.from("trust_edges").select("*").order("created_at", { ascending: false }),
+      supabase.from("member_boundaries").select("*").order("created_at", { ascending: false }),
+      supabase.from("nocturno_items").select("*").order("created_at", { ascending: false }).limit(160),
       supabase.from("privacy_settings").select("*").eq("id", "main").maybeSingle(),
       supabase.from("messages").select("*").order("created_at", { ascending: true }).limit(200),
       supabase.from("invite_codes").select("*").order("created_at", { ascending: false }),
@@ -1482,10 +2024,16 @@ function App() {
       docsResult.error,
       decisionsResult.error,
       checkInsResult.error,
+      feedPostsResult.error,
+      feedCommentsResult.error,
+      feedReactionsResult.error,
       intentionsResult.error,
       introductionsResult.error,
       interestsResult.error,
       relationshipsResult.error,
+      trustEdgesResult.error,
+      memberBoundariesResult.error,
+      nocturnoItemsResult.error,
       privacyResult.error,
       messagesResult.error,
       invitesResult.error,
@@ -1609,6 +2157,35 @@ function App() {
       createdAt: row.created_at,
     }));
 
+    const feedPosts = ((feedPostsResult.data ?? []) as FeedPostRow[]).map((row) => ({
+      id: row.id,
+      authorId: row.author_id,
+      groupId: row.group_id,
+      kind: row.kind,
+      visibility: row.visibility,
+      title: row.title ?? "",
+      body: row.body,
+      tags: row.tags ?? [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+
+    const feedComments = ((feedCommentsResult.data ?? []) as FeedCommentRow[]).map((row) => ({
+      id: row.id,
+      postId: row.post_id,
+      authorId: row.author_id,
+      body: row.body,
+      createdAt: row.created_at,
+    }));
+
+    const feedReactions = ((feedReactionsResult.data ?? []) as FeedReactionRow[]).map((row) => ({
+      id: row.id,
+      postId: row.post_id,
+      memberId: row.member_id,
+      kind: row.kind,
+      createdAt: row.created_at,
+    }));
+
     const intentions = ((intentionsResult.data ?? []) as IntentionRow[]).map((row) => ({
       memberId: row.member_id,
       kinds: row.kinds ?? [],
@@ -1641,6 +2218,45 @@ function App() {
       label: row.label,
       visibility: row.visibility,
       createdAt: row.created_at,
+    }));
+
+    const trustEdges = ((trustEdgesResult.data ?? []) as TrustEdgeRow[]).map((row) => ({
+      id: row.id,
+      fromId: row.from_id,
+      toId: row.to_id,
+      kind: row.kind,
+      note: row.note ?? "",
+      createdAt: row.created_at,
+    }));
+
+    const memberBoundaries = ((memberBoundariesResult.data ?? []) as MemberBoundaryRow[]).map((row) => ({
+      id: row.id,
+      actorId: row.actor_id,
+      targetId: row.target_id,
+      kind: row.kind,
+      reason: row.reason ?? "",
+      createdAt: row.created_at,
+    }));
+
+    const nocturnoItems = ((nocturnoItemsResult.data ?? []) as NocturnoItemRow[]).map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      authorId: row.author_id,
+      groupId: row.group_id,
+      visibility: row.visibility,
+      title: row.title ?? "",
+      body: row.body ?? "",
+      url: row.url ?? "",
+      tags: row.tags ?? [],
+      warning: row.warning ?? "",
+      mood: row.mood ?? "",
+      mode: row.mode ?? "",
+      limits: row.limits ?? "",
+      aftercare: row.aftercare ?? "",
+      signed: row.signed ?? true,
+      openToTalk: row.open_to_talk ?? false,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     }));
 
     const privacyRow = privacyResult.data as PrivacySettingsRow | null;
@@ -1779,10 +2395,16 @@ function App() {
       docs,
       decisions,
       eventCheckIns,
+      feedPosts,
+      feedComments,
+      feedReactions,
       intentions,
       introductions,
       interests,
       relationships,
+      trustEdges,
+      memberBoundaries,
+      nocturnoItems,
       privacySettings,
       messages,
       reports,
@@ -1961,6 +2583,10 @@ function App() {
   }, [state, usingBackend]);
 
   useEffect(() => {
+    localStorage.setItem(languageStoreKey, language);
+  }, [language]);
+
+  useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
@@ -2050,6 +2676,78 @@ function App() {
 
   const activeGroup = groupById.get(activeGroupId) ?? state.groups[0];
   const currentMember = memberById.get(currentMemberId) ?? state.members[0];
+  const copy = uiCopy[language];
+  const blockedMemberIds = useMemo(() => {
+    const blocked = new Set<string>();
+    state.memberBoundaries
+      .filter((boundary) => boundary.kind === "block")
+      .forEach((boundary) => {
+        if (boundary.actorId === currentMember.id) blocked.add(boundary.targetId);
+        if (boundary.targetId === currentMember.id) blocked.add(boundary.actorId);
+      });
+    return blocked;
+  }, [currentMember.id, state.memberBoundaries]);
+  const mutedMemberIds = useMemo(
+    () =>
+      new Set(
+        state.memberBoundaries
+          .filter((boundary) => boundary.actorId === currentMember.id && boundary.kind === "mute")
+          .map((boundary) => boundary.targetId),
+      ),
+    [currentMember.id, state.memberBoundaries],
+  );
+  const hasTrustWithCurrentMember = useCallback(
+    (memberId: string) =>
+      memberId === currentMember.id ||
+      state.trustEdges.some(
+        (edge) =>
+          (edge.fromId === currentMember.id && edge.toId === memberId) ||
+          (edge.toId === currentMember.id && edge.fromId === memberId),
+      ) ||
+      state.relationships.some(
+        (relationship) =>
+          relationship.visibility !== "privado" &&
+          ((relationship.memberId === currentMember.id && relationship.relatedMemberId === memberId) ||
+            (relationship.relatedMemberId === currentMember.id && relationship.memberId === memberId)),
+      ) ||
+      state.interests.some(
+        (interest) =>
+          interest.fromId === currentMember.id &&
+          interest.toId === memberId &&
+          state.interests.some(
+            (candidate) =>
+              candidate.fromId === memberId &&
+              candidate.toId === currentMember.id &&
+              candidate.kind === interest.kind,
+          ),
+      ),
+    [currentMember.id, state.interests, state.relationships, state.trustEdges],
+  );
+  const canSeeScopedContent = useCallback(
+    (authorId: string | null, groupId: string | null, visibility: FeedVisibility | NocturnoVisibility) => {
+      if (authorId && blockedMemberIds.has(authorId)) return false;
+      if (authorId && mutedMemberIds.has(authorId)) return false;
+      if (currentMember.role === "admin") return true;
+      if (authorId === currentMember.id) return true;
+      if (visibility === "comunidade") return true;
+      if (visibility === "grupo") return Boolean(groupId && currentMember.groupIds.includes(groupId));
+      if (visibility === "conexoes") return Boolean(authorId && hasTrustWithCurrentMember(authorId));
+      return false;
+    },
+    [blockedMemberIds, currentMember.groupIds, currentMember.id, currentMember.role, hasTrustWithCurrentMember, mutedMemberIds],
+  );
+  const visibleFeedPosts = state.feedPosts.filter((post) =>
+    canSeeScopedContent(post.authorId, post.groupId, post.visibility),
+  );
+  const visibleFeedPostIds = new Set(visibleFeedPosts.map((post) => post.id));
+  const visibleFeedComments = state.feedComments.filter(
+    (comment) => visibleFeedPostIds.has(comment.postId) && !blockedMemberIds.has(comment.authorId),
+  );
+  const visibleFeedReactions = state.feedReactions.filter((reaction) => visibleFeedPostIds.has(reaction.postId));
+  const visibleNocturnoItems = state.nocturnoItems.filter((item) =>
+    canSeeScopedContent(item.authorId, item.groupId, item.visibility),
+  );
+  const visibleMessages = state.messages.filter((message) => !blockedMemberIds.has(message.authorId));
   const syncCopy = getSyncCopy(syncStatus);
   const onlineMembers = state.members.filter((member) => member.status === "online");
   const directPeerCount = directPeerStatuses.filter(
@@ -3898,6 +4596,365 @@ function App() {
     return true;
   }
 
+  async function addFeedPost(input: {
+    kind: FeedPostKind;
+    visibility: FeedVisibility;
+    groupId: string;
+    title: string;
+    body: string;
+    tags: string;
+  }) {
+    const body = input.body.trim();
+    if (!body) {
+      showNotice("Escreve alguma coisa para publicar.");
+      return false;
+    }
+    const post: FeedPost = {
+      id: crypto.randomUUID(),
+      authorId: currentMember.id,
+      groupId: input.visibility === "grupo" ? input.groupId : null,
+      kind: input.kind,
+      visibility: input.visibility,
+      title: input.title.trim(),
+      body,
+      tags: parseTags(input.tags),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("feed_posts").insert({
+        id: post.id,
+        author_id: profile.id,
+        group_id: post.groupId,
+        kind: post.kind,
+        visibility: post.visibility,
+        title: post.title,
+        body: post.body,
+        tags: post.tags,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Publicado no mural.");
+      return true;
+    }
+
+    updateState((current) => ({ ...current, feedPosts: [post, ...current.feedPosts] }));
+    showNotice("Publicado no mural.");
+    return true;
+  }
+
+  async function addFeedComment(input: { postId: string; body: string }) {
+    const body = input.body.trim();
+    if (!body) return false;
+    const comment: FeedComment = {
+      id: crypto.randomUUID(),
+      postId: input.postId,
+      authorId: currentMember.id,
+      body,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("feed_comments").insert({
+        id: comment.id,
+        post_id: input.postId,
+        author_id: profile.id,
+        body,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      return true;
+    }
+
+    updateState((current) => ({ ...current, feedComments: [...current.feedComments, comment] }));
+    return true;
+  }
+
+  async function toggleFeedReaction(input: { postId: string; kind: FeedReactionKind }) {
+    const existing = state.feedReactions.find(
+      (reaction) =>
+        reaction.postId === input.postId &&
+        reaction.memberId === currentMember.id &&
+        reaction.kind === input.kind,
+    );
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = existing
+        ? await supabase.from("feed_reactions").delete().eq("id", existing.id)
+        : await supabase.from("feed_reactions").insert({
+            id: crypto.randomUUID(),
+            post_id: input.postId,
+            member_id: profile.id,
+            kind: input.kind,
+          });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      feedReactions: existing
+        ? current.feedReactions.filter((reaction) => reaction.id !== existing.id)
+        : [
+            ...current.feedReactions,
+            {
+              id: crypto.randomUUID(),
+              postId: input.postId,
+              memberId: currentMember.id,
+              kind: input.kind,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+    }));
+  }
+
+  async function deleteFeedPost(postId: string) {
+    const post = state.feedPosts.find((candidate) => candidate.id === postId);
+    if (!post) return;
+    const canDelete = currentMember.role === "admin" || post.authorId === currentMember.id;
+    if (!canDelete) {
+      showNotice("Só admins ou quem publicou podem eliminar.");
+      return;
+    }
+
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("feed_posts").delete().eq("id", postId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Publicação eliminada.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      feedPosts: current.feedPosts.filter((candidate) => candidate.id !== postId),
+      feedComments: current.feedComments.filter((comment) => comment.postId !== postId),
+      feedReactions: current.feedReactions.filter((reaction) => reaction.postId !== postId),
+    }));
+    showNotice("Publicação eliminada.");
+  }
+
+  async function toggleTrustEdge(input: { targetId: string; kind: TrustEdgeKind; note?: string }) {
+    if (!input.targetId || input.targetId === currentMember.id) return;
+    const existing = state.trustEdges.find(
+      (edge) => edge.fromId === currentMember.id && edge.toId === input.targetId && edge.kind === input.kind,
+    );
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = existing
+        ? await supabase.from("trust_edges").delete().eq("id", existing.id)
+        : await supabase.from("trust_edges").insert({
+            id: crypto.randomUUID(),
+            from_id: profile.id,
+            to_id: input.targetId,
+            kind: input.kind,
+            note: input.note?.trim() ?? "",
+          });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice(existing ? "Sinal de confiança removido." : "Sinal de confiança guardado.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      trustEdges: existing
+        ? current.trustEdges.filter((edge) => edge.id !== existing.id)
+        : [
+            {
+              id: crypto.randomUUID(),
+              fromId: currentMember.id,
+              toId: input.targetId,
+              kind: input.kind,
+              note: input.note?.trim() ?? "",
+              createdAt: new Date().toISOString(),
+            },
+            ...current.trustEdges,
+          ],
+    }));
+    showNotice(existing ? "Sinal de confiança removido." : "Sinal de confiança guardado.");
+  }
+
+  async function setMemberBoundary(input: { targetId: string; kind: MemberBoundaryKind; reason?: string }) {
+    if (!input.targetId || input.targetId === currentMember.id) return;
+    const existing = state.memberBoundaries.find(
+      (boundary) =>
+        boundary.actorId === currentMember.id &&
+        boundary.targetId === input.targetId &&
+        boundary.kind === input.kind,
+    );
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = existing
+        ? await supabase.from("member_boundaries").delete().eq("id", existing.id)
+        : await supabase.from("member_boundaries").insert({
+            id: crypto.randomUUID(),
+            actor_id: profile.id,
+            target_id: input.targetId,
+            kind: input.kind,
+            reason: input.reason?.trim() ?? "",
+          });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice(existing ? "Limite removido." : input.kind === "block" ? "Pessoa bloqueada." : "Pessoa silenciada.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      memberBoundaries: existing
+        ? current.memberBoundaries.filter((boundary) => boundary.id !== existing.id)
+        : [
+            {
+              id: crypto.randomUUID(),
+              actorId: currentMember.id,
+              targetId: input.targetId,
+              kind: input.kind,
+              reason: input.reason?.trim() ?? "",
+              createdAt: new Date().toISOString(),
+            },
+            ...current.memberBoundaries,
+          ],
+    }));
+    showNotice(existing ? "Limite removido." : input.kind === "block" ? "Pessoa bloqueada." : "Pessoa silenciada.");
+  }
+
+  async function addNocturnoItem(input: {
+    kind: NocturnoKind;
+    groupId: string;
+    visibility: NocturnoVisibility;
+    title: string;
+    body: string;
+    url: string;
+    tags: string;
+    warning: string;
+    mood: string;
+    mode: string;
+    limits: string;
+    aftercare: string;
+    signed: boolean;
+    openToTalk: boolean;
+  }) {
+    const title = input.title.trim() || (input.kind === "confissao" ? "Confissão" : "");
+    const body = input.body.trim();
+    if (!title && !body && !input.url.trim()) return false;
+    const item: NocturnoItem = {
+      id: crypto.randomUUID(),
+      kind: input.kind,
+      authorId: input.signed ? currentMember.id : null,
+      groupId: input.visibility === "grupo" ? input.groupId : null,
+      visibility: input.visibility,
+      title,
+      body,
+      url: input.url.trim(),
+      tags: parseTags(input.tags),
+      warning: input.warning.trim(),
+      mood: input.mood.trim(),
+      mode: input.mode.trim(),
+      limits: input.limits.trim(),
+      aftercare: input.aftercare.trim(),
+      signed: input.signed,
+      openToTalk: input.openToTalk,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (usingBackend && supabase && profile) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("nocturno_items").insert({
+        id: item.id,
+        kind: item.kind,
+        author_id: item.authorId ? profile.id : null,
+        group_id: item.groupId,
+        visibility: item.visibility,
+        title: item.title,
+        body: item.body,
+        url: item.url,
+        tags: item.tags,
+        warning: item.warning,
+        mood: item.mood,
+        mode: item.mode,
+        limits: item.limits,
+        aftercare: item.aftercare,
+        signed: item.signed,
+        open_to_talk: item.openToTalk,
+      });
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return false;
+      }
+      await fetchBackendData();
+      showNotice("Nocturno atualizado.");
+      return true;
+    }
+
+    updateState((current) => ({ ...current, nocturnoItems: [item, ...current.nocturnoItems] }));
+    showNotice("Nocturno atualizado.");
+    return true;
+  }
+
+  async function deleteNocturnoItem(itemId: string) {
+    const item = state.nocturnoItems.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    const canDelete = currentMember.role === "admin" || item.authorId === currentMember.id;
+    if (!canDelete) {
+      showNotice("Só admins ou quem publicou podem eliminar.");
+      return;
+    }
+
+    if (usingBackend && supabase) {
+      setSyncStatus("saving");
+      const { error } = await supabase.from("nocturno_items").delete().eq("id", itemId);
+      if (error) {
+        setSyncStatus("error");
+        setSyncMessage(error.message);
+        return;
+      }
+      await fetchBackendData();
+      showNotice("Item removido.");
+      return;
+    }
+
+    updateState((current) => ({
+      ...current,
+      nocturnoItems: current.nocturnoItems.filter((candidate) => candidate.id !== itemId),
+    }));
+    showNotice("Item removido.");
+  }
+
   async function addGroup(input: {
     name: string;
     focus: string;
@@ -4059,11 +5116,11 @@ function App() {
   }
 
   if (usingBackend && authLoading) {
-    return <LoadingScreen label="A abrir comunidade" />;
+    return <LoadingScreen label={copy.auth.loading} preparingCopy={copy.auth.preparing} />;
   }
 
   if (usingBackend && !session) {
-    return <AuthView />;
+    return <AuthView copy={copy} />;
   }
 
   if (usingBackend && session && !profile) {
@@ -4093,20 +5150,21 @@ function App() {
         <div className="brand-block">
           <div>
             <h1>entra.</h1>
-            <p>com sentimento</p>
+            <p>{copy.brandSubtitle}</p>
           </div>
         </div>
 
         <nav className={currentMember.role === "admin" ? "nav-list admin-nav" : "nav-list"} aria-label="Navegação principal">
-          <NavButton id="hoje" active={activeNav} setActive={setActiveNav} icon={<CircleDot />} label="Hoje" />
-          <NavButton id="chat" active={activeNav} setActive={setActiveNav} icon={<MessageCircle />} label="Chat" />
-          <NavButton id="agenda" active={activeNav} setActive={setActiveNav} icon={<CalendarDays />} label="Agenda" />
-          <NavButton id="comunidade" active={activeNav} setActive={setActiveNav} icon={<Users />} label="Comunidade" />
-          <NavButton id="memoria" active={activeNav} setActive={setActiveNav} icon={<BookOpenText />} label="Memória" />
-          <NavButton id="nocturno" active={activeNav} setActive={setActiveNav} icon={<Sparkles />} label="Nocturno" />
-          <NavButton id="cuidado" active={activeNav} setActive={setActiveNav} icon={<HeartHandshake />} label="Cuidado" />
+          <NavButton id="hoje" active={activeNav} setActive={setActiveNav} icon={<CircleDot />} label={copy.nav.hoje} />
+          <NavButton id="mural" active={activeNav} setActive={setActiveNav} icon={<Sparkles />} label={copy.nav.mural} />
+          <NavButton id="chat" active={activeNav} setActive={setActiveNav} icon={<MessageCircle />} label={copy.nav.chat} />
+          <NavButton id="agenda" active={activeNav} setActive={setActiveNav} icon={<CalendarDays />} label={copy.nav.agenda} />
+          <NavButton id="comunidade" active={activeNav} setActive={setActiveNav} icon={<Users />} label={copy.nav.comunidade} />
+          <NavButton id="memoria" active={activeNav} setActive={setActiveNav} icon={<BookOpenText />} label={copy.nav.memoria} />
+          <NavButton id="nocturno" active={activeNav} setActive={setActiveNav} icon={<Sparkles />} label={copy.nav.nocturno} />
+          <NavButton id="cuidado" active={activeNav} setActive={setActiveNav} icon={<HeartHandshake />} label={copy.nav.cuidado} />
           {currentMember.role === "admin" && (
-            <NavButton id="admin" active={activeNav} setActive={setActiveNav} icon={<ShieldCheck />} label="Admin" />
+            <NavButton id="admin" active={activeNav} setActive={setActiveNav} icon={<ShieldCheck />} label={copy.nav.admin} />
           )}
         </nav>
 
@@ -4143,8 +5201,8 @@ function App() {
       <main className={`workspace ${activeNav === "chat" ? "chat-workspace" : ""}`}>
         <header className="topbar">
           <div>
-            <p className="eyebrow">quinta, 18 junho 2026</p>
-            <h2>{navTitle(activeNav)}</h2>
+            <p className="eyebrow">{formatLongDate(new Date(), language)}</p>
+            <h2>{navTitle(activeNav, language)}</h2>
           </div>
           <div className="status-strip" aria-label="Estado da comunidade">
             <span className={`sync-pill ${syncStatus}`} title={syncMessage || syncCopy.description}>
@@ -4153,19 +5211,26 @@ function App() {
             </span>
             <span>
               <Wifi size={16} aria-hidden />
-              {onlineMembers.length} online
+              {onlineMembers.length} {copy.topbar.online}
             </span>
             <span>
               <ShieldCheck size={16} aria-hidden />
-              {state.members.length} membros
+              {state.members.length} {copy.topbar.members}
             </span>
             <button
               className="status-action"
               type="button"
-              onClick={() => copyText(window.location.origin, "Link da app copiado.")}
+              onClick={() => setLanguage((current) => (current === "pt" ? "en" : "pt"))}
+            >
+              {copy.topbar.switchLanguage}
+            </button>
+            <button
+              className="status-action"
+              type="button"
+              onClick={() => copyText(window.location.origin, copy.topbar.copied)}
             >
               <Copy size={16} aria-hidden />
-              Link
+              {copy.topbar.link}
             </button>
           </div>
         </header>
@@ -4182,13 +5247,34 @@ function App() {
           />
         )}
 
+        {activeNav === "mural" && (
+          <FeedView
+            posts={visibleFeedPosts}
+            comments={visibleFeedComments}
+            reactions={visibleFeedReactions}
+            groups={state.groups}
+            members={state.members}
+            currentMember={currentMember}
+            memberById={memberById}
+            groupById={groupById}
+            blockedMemberIds={blockedMemberIds}
+            mutedMemberIds={mutedMemberIds}
+            addFeedPost={addFeedPost}
+            addFeedComment={addFeedComment}
+            toggleFeedReaction={toggleFeedReaction}
+            deleteFeedPost={deleteFeedPost}
+            setMemberBoundary={setMemberBoundary}
+            copy={copy.feed}
+          />
+        )}
+
         {activeNav === "chat" && (
           <ChatView
             members={state.members}
             groups={state.groups}
             docs={state.docs}
             decisions={state.decisions}
-            messages={state.messages}
+            messages={visibleMessages}
             activeGroupId={activeGroup.id}
             currentMember={currentMember}
             memberById={memberById}
@@ -4241,6 +5327,8 @@ function App() {
             introductions={state.introductions}
             interests={state.interests}
             relationships={state.relationships}
+            trustEdges={state.trustEdges}
+            memberBoundaries={state.memberBoundaries}
             privacySettings={state.privacySettings}
             deviceKeys={deviceKeys}
             updateOwnProfile={updateOwnProfile}
@@ -4251,6 +5339,8 @@ function App() {
             toggleInterest={toggleInterest}
             addRelationship={addRelationship}
             deleteRelationship={deleteRelationship}
+            toggleTrustEdge={toggleTrustEdge}
+            setMemberBoundary={setMemberBoundary}
             updatePrivacySettings={updatePrivacySettings}
             addGroup={addGroup}
             toggleGroupMember={toggleGroupMember}
@@ -4292,7 +5382,10 @@ function App() {
             deviceKeys={deviceKeys}
             deviceSecurityStatus={deviceSecurityStatus}
             interests={state.interests}
+            nocturnoItems={visibleNocturnoItems}
             toggleInterest={toggleInterest}
+            addNocturnoItem={addNocturnoItem}
+            deleteNocturnoItem={deleteNocturnoItem}
             showNotice={showNotice}
           />
         )}
@@ -4346,7 +5439,7 @@ function App() {
   );
 }
 
-function LoadingScreen({ label }: { label: string }) {
+function LoadingScreen({ label, preparingCopy }: { label: string; preparingCopy: string }) {
   return (
     <main className="auth-screen">
       <section className="auth-panel surface entry-auth-panel">
@@ -4357,7 +5450,7 @@ function LoadingScreen({ label }: { label: string }) {
             <p>{label}</p>
           </div>
         </div>
-        <p>A preparar a ligação segura à comunidade.</p>
+        <p>{preparingCopy}</p>
       </section>
     </main>
   );
@@ -4384,7 +5477,7 @@ function SuspendedScreen({ member, onSignOut }: { member: Member; onSignOut: () 
   );
 }
 
-function AuthView() {
+function AuthView({ copy }: { copy: AppCopy }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -4411,7 +5504,7 @@ function AuthView() {
     }
 
     if (mode === "signup" && !result.data.session) {
-      setMessage("Conta criada. Confirma o email antes de entrar.");
+      setMessage(copy.auth.signup === "Create account" ? "Account created. Confirm your email before logging in." : "Conta criada. Confirma o email antes de entrar.");
     }
   }
 
@@ -4422,22 +5515,22 @@ function AuthView() {
         <div className="brand-block compact entry-lockup">
           <div>
             <h1>entra.</h1>
-            <p>com sentimento</p>
+            <p>{copy.brandSubtitle}</p>
           </div>
         </div>
 
         <div className="segmented-control" role="tablist" aria-label="Modo de acesso">
           <button className={mode === "login" ? "active" : ""} type="button" onClick={() => setMode("login")}>
-            Entrar
+            {copy.auth.login}
           </button>
           <button className={mode === "signup" ? "active" : ""} type="button" onClick={() => setMode("signup")}>
-            Criar conta
+            {copy.auth.signup}
           </button>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="field-group">
-            <label htmlFor="auth-email">{mode === "login" ? "Email ou acesso de teste" : "Email"}</label>
+            <label htmlFor="auth-email">{mode === "login" ? copy.auth.email : "Email"}</label>
             <input
               id="auth-email"
               type={mode === "login" ? "text" : "email"}
@@ -4447,7 +5540,7 @@ function AuthView() {
             />
           </div>
           <div className="field-group">
-            <label htmlFor="auth-password">Palavra-passe</label>
+            <label htmlFor="auth-password">{copy.auth.password}</label>
             <input
               id="auth-password"
               type="password"
@@ -4460,7 +5553,7 @@ function AuthView() {
           {message && <p className="form-alert">{message}</p>}
           <button className="primary-button" type="submit" disabled={submitting}>
             <ShieldCheck size={17} aria-hidden />
-            {submitting ? "Aguarda" : mode === "login" ? "Entrar" : "Criar conta"}
+            {submitting ? (copy.auth.signup === "Create account" ? "Wait" : "Aguarda") : mode === "login" ? copy.auth.submitLogin : copy.auth.submitSignup}
           </button>
         </form>
       </section>
@@ -4638,6 +5731,270 @@ function Overview({
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+function FeedView({
+  posts,
+  comments,
+  reactions,
+  groups,
+  members,
+  currentMember,
+  memberById,
+  groupById,
+  blockedMemberIds,
+  mutedMemberIds,
+  addFeedPost,
+  addFeedComment,
+  toggleFeedReaction,
+  deleteFeedPost,
+  setMemberBoundary,
+  copy,
+}: {
+  posts: FeedPost[];
+  comments: FeedComment[];
+  reactions: FeedReaction[];
+  groups: Group[];
+  members: Member[];
+  currentMember: Member;
+  memberById: Map<string, Member>;
+  groupById: Map<string, Group>;
+  blockedMemberIds: Set<string>;
+  mutedMemberIds: Set<string>;
+  addFeedPost: (input: {
+    kind: FeedPostKind;
+    visibility: FeedVisibility;
+    groupId: string;
+    title: string;
+    body: string;
+    tags: string;
+  }) => Promise<boolean>;
+  addFeedComment: (input: { postId: string; body: string }) => Promise<boolean>;
+  toggleFeedReaction: (input: { postId: string; kind: FeedReactionKind }) => Promise<void>;
+  deleteFeedPost: (postId: string) => Promise<void>;
+  setMemberBoundary: (input: { targetId: string; kind: MemberBoundaryKind; reason?: string }) => Promise<void>;
+  copy: FeedCopy;
+}) {
+  const [form, setForm] = useState({
+    kind: "nota" as FeedPostKind,
+    visibility: "comunidade" as FeedVisibility,
+    groupId: groups[0]?.id ?? "",
+    title: "",
+    body: "",
+    tags: "",
+  });
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState<"todos" | "perguntas" | "eventos" | "meus">("todos");
+  const visiblePosts = posts.filter((post) => {
+    if (filter === "perguntas") return post.kind === "pergunta";
+    if (filter === "eventos") return post.kind === "evento";
+    if (filter === "meus") return post.authorId === currentMember.id;
+    return true;
+  });
+  const activeMembers = members.filter((member) => !blockedMemberIds.has(member.id));
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const created = await addFeedPost(form);
+    if (created) {
+      setForm((current) => ({ ...current, title: "", body: "", tags: "" }));
+    }
+  }
+
+  async function handleCommentSubmit(event: FormEvent<HTMLFormElement>, postId: string) {
+    event.preventDefault();
+    const created = await addFeedComment({ postId, body: commentDrafts[postId] ?? "" });
+    if (created) {
+      setCommentDrafts((current) => ({ ...current, [postId]: "" }));
+    }
+  }
+
+  return (
+    <section className="feed-layout">
+      <form className="surface form-panel feed-composer" onSubmit={handleSubmit}>
+        <SurfaceHeader icon={<Sparkles />} title={copy.composerTitle} />
+        <div className="field-pair">
+          <div className="field-group">
+            <label htmlFor="feed-kind">{copy.kind}</label>
+            <select
+              id="feed-kind"
+              value={form.kind}
+              onChange={(event) => setForm({ ...form, kind: event.target.value as FeedPostKind })}
+            >
+              <option value="nota">nota</option>
+              <option value="pergunta">pergunta</option>
+              <option value="poll">poll</option>
+              <option value="media">media</option>
+              <option value="evento">eco de evento</option>
+            </select>
+          </div>
+          <div className="field-group">
+            <label htmlFor="feed-visibility">{copy.visibility}</label>
+            <select
+              id="feed-visibility"
+              value={form.visibility}
+              onChange={(event) => setForm({ ...form, visibility: event.target.value as FeedVisibility })}
+            >
+              <option value="comunidade">comunidade</option>
+              <option value="grupo">grupo</option>
+              <option value="conexoes">conexões</option>
+            </select>
+          </div>
+        </div>
+        {form.visibility === "grupo" && (
+          <div className="field-group">
+            <label htmlFor="feed-group">{copy.group}</label>
+            <select id="feed-group" value={form.groupId} onChange={(event) => setForm({ ...form, groupId: event.target.value })}>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="field-group">
+          <label htmlFor="feed-title">{copy.title}</label>
+          <input id="feed-title" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+        </div>
+        <div className="field-group">
+          <label htmlFor="feed-body">{copy.body}</label>
+          <textarea id="feed-body" rows={5} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} />
+        </div>
+        <div className="field-group">
+          <label htmlFor="feed-tags">{copy.tags}</label>
+          <input id="feed-tags" value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} />
+        </div>
+        <button className="primary-button" type="submit">
+          <Plus size={17} aria-hidden />
+          {copy.publish}
+        </button>
+      </form>
+
+      <section className="feed-main">
+        <div className="surface feed-filter-bar">
+          {(["todos", "perguntas", "eventos", "meus"] as const).map((value) => (
+            <button
+              key={value}
+              className={filter === value ? "secondary-button selected" : "secondary-button"}
+              type="button"
+              onClick={() => setFilter(value)}
+            >
+              {copy.filters[value]}
+            </button>
+          ))}
+          <span>
+            {visiblePosts.length} {copy.countLabel}
+          </span>
+        </div>
+
+        {visiblePosts.map((post) => {
+          const author = memberById.get(post.authorId);
+          const postComments = comments.filter((comment) => comment.postId === post.id);
+          const postReactions = reactions.filter((reaction) => reaction.postId === post.id);
+          const canDelete = currentMember.role === "admin" || post.authorId === currentMember.id;
+          return (
+            <article className="surface feed-post" key={post.id}>
+              <header>
+                {author && <MemberAvatar member={author} />}
+                <div>
+                  <strong>{author?.name ?? "Pessoa"}</strong>
+                  <span>
+                    {feedKindLabels[post.kind]} · {feedVisibilityLabels[post.visibility]}
+                    {post.groupId ? ` · ${groupById.get(post.groupId)?.name ?? "grupo"}` : ""}
+                  </span>
+                </div>
+                <time dateTime={post.createdAt}>{formatClock(post.createdAt)}</time>
+              </header>
+              {post.title && <h3>{post.title}</h3>}
+              <p>{post.body}</p>
+              <footer className="feed-tags">
+                {post.tags.map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </footer>
+              <div className="feed-actions">
+                {(["heart", "spark", "same"] as FeedReactionKind[]).map((kind) => {
+                  const active = postReactions.some((reaction) => reaction.kind === kind && reaction.memberId === currentMember.id);
+                  return (
+                    <button
+                      key={kind}
+                      className={active ? "secondary-button selected" : "secondary-button"}
+                      type="button"
+                      onClick={() => toggleFeedReaction({ postId: post.id, kind })}
+                    >
+                      {feedReactionLabels[kind]} {postReactions.filter((reaction) => reaction.kind === kind).length}
+                    </button>
+                  );
+                })}
+                {author && author.id !== currentMember.id && (
+                  <>
+                    <button
+                      className={mutedMemberIds.has(author.id) ? "secondary-button selected" : "secondary-button"}
+                      type="button"
+                      onClick={() => setMemberBoundary({ targetId: author.id, kind: "mute", reason: "mural" })}
+                    >
+                      {mutedMemberIds.has(author.id) ? copy.muted : copy.mute}
+                    </button>
+                    <button
+                      className="secondary-button danger-text"
+                      type="button"
+                      onClick={() => setMemberBoundary({ targetId: author.id, kind: "block", reason: "mural" })}
+                    >
+                      {copy.block}
+                    </button>
+                  </>
+                )}
+                {canDelete && (
+                  <button className="icon-only danger" type="button" onClick={() => deleteFeedPost(post.id)} title="Eliminar publicação">
+                    <Trash2 size={16} aria-hidden />
+                  </button>
+                )}
+              </div>
+              <section className="feed-comments">
+                {postComments.map((comment) => (
+                  <article key={comment.id}>
+                    <strong>{memberById.get(comment.authorId)?.name ?? "Pessoa"}</strong>
+                    <span>{comment.body}</span>
+                  </article>
+                ))}
+                <form onSubmit={(event) => handleCommentSubmit(event, post.id)}>
+                  <input
+                    value={commentDrafts[post.id] ?? ""}
+                    onChange={(event) => setCommentDrafts({ ...commentDrafts, [post.id]: event.target.value })}
+                    placeholder={copy.commentPlaceholder}
+                  />
+                  <button className="secondary-button" type="submit">
+                    {copy.comment}
+                  </button>
+                </form>
+              </section>
+            </article>
+          );
+        })}
+
+        {!visiblePosts.length && (
+          <section className="surface empty-panel">
+            <Sparkles size={22} aria-hidden />
+            <p>{copy.empty}</p>
+          </section>
+        )}
+      </section>
+
+      <aside className="surface feed-side-panel">
+        <SurfaceHeader icon={<Users />} title={copy.radar} />
+        {activeMembers.slice(0, 8).map((member) => (
+          <article className="feed-member-row" key={member.id}>
+            <MemberAvatar member={member} />
+            <div>
+              <strong>{member.name}</strong>
+              <span>{member.relationshipContext || member.pronouns}</span>
+            </div>
+          </article>
+        ))}
+      </aside>
     </section>
   );
 }
@@ -5320,6 +6677,8 @@ function CommunityHub({
   introductions,
   interests,
   relationships,
+  trustEdges,
+  memberBoundaries,
   privacySettings,
   deviceKeys,
   updateOwnProfile,
@@ -5330,6 +6689,8 @@ function CommunityHub({
   toggleInterest,
   addRelationship,
   deleteRelationship,
+  toggleTrustEdge,
+  setMemberBoundary,
   updatePrivacySettings,
   addGroup,
   toggleGroupMember,
@@ -5348,6 +6709,8 @@ function CommunityHub({
   introductions: WarmIntroduction[];
   interests: MutualInterest[];
   relationships: RelationshipLink[];
+  trustEdges: TrustEdge[];
+  memberBoundaries: MemberBoundary[];
   privacySettings: PrivacySettings;
   deviceKeys: DeviceKey[];
   updateOwnProfile: (input: ProfileUpdateInput) => Promise<boolean>;
@@ -5362,6 +6725,8 @@ function CommunityHub({
     visibility: RelationshipVisibility;
   }) => Promise<boolean>;
   deleteRelationship: (relationshipId: string) => Promise<void>;
+  toggleTrustEdge: (input: { targetId: string; kind: TrustEdgeKind; note?: string }) => Promise<void>;
+  setMemberBoundary: (input: { targetId: string; kind: MemberBoundaryKind; reason?: string }) => Promise<void>;
   updatePrivacySettings: (input: PrivacySettings) => Promise<boolean>;
   addGroup: (input: { name: string; focus: string; privacy: GroupPrivacy; stewardId: string }) => Promise<boolean>;
   toggleGroupMember: (groupId: string, memberId: string) => void;
@@ -5407,6 +6772,8 @@ function CommunityHub({
           introductions={introductions}
           interests={interests}
           relationships={relationships}
+          trustEdges={trustEdges}
+          memberBoundaries={memberBoundaries}
           privacySettings={privacySettings}
           deviceKeys={deviceKeys}
           updateIntention={updateIntention}
@@ -5415,6 +6782,8 @@ function CommunityHub({
           toggleInterest={toggleInterest}
           addRelationship={addRelationship}
           deleteRelationship={deleteRelationship}
+          toggleTrustEdge={toggleTrustEdge}
+          setMemberBoundary={setMemberBoundary}
           updatePrivacySettings={updatePrivacySettings}
         />
       )}
@@ -5720,7 +7089,10 @@ function NocturnoView({
   deviceKeys,
   deviceSecurityStatus,
   interests,
+  nocturnoItems,
   toggleInterest,
+  addNocturnoItem,
+  deleteNocturnoItem,
   showNotice,
 }: {
   members: Member[];
@@ -5731,109 +7103,124 @@ function NocturnoView({
   deviceKeys: DeviceKey[];
   deviceSecurityStatus: DeviceSecurityStatus;
   interests: MutualInterest[];
+  nocturnoItems: NocturnoItem[];
   toggleInterest: (input: { targetId: string; kind: InterestKind }) => Promise<void>;
+  addNocturnoItem: (input: {
+    kind: NocturnoKind;
+    groupId: string;
+    visibility: NocturnoVisibility;
+    title: string;
+    body: string;
+    url: string;
+    tags: string;
+    warning: string;
+    mood: string;
+    mode: string;
+    limits: string;
+    aftercare: string;
+    signed: boolean;
+    openToTalk: boolean;
+  }) => Promise<boolean>;
+  deleteNocturnoItem: (itemId: string) => Promise<void>;
   showNotice: (message: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<NocturnoTab>("eroteca");
   const otherMembers = members.filter((member) => member.id !== currentMember.id);
-  const [erotecaLinks, setErotecaLinks] = useState([
-    {
-      id: "ero_1",
-      title: "Erika Lust - cinema adulto ético",
-      url: "https://erikalust.com",
-      tags: ["ético", "cinema", "queer"],
-      warning: "conteúdo explícito",
-      note: "Boa curadoria, diversidade de corpos e contexto.",
-    },
-    {
-      id: "ero_2",
-      title: "Bellesa",
-      url: "https://www.bellesa.co",
-      tags: ["curadoria", "artigos", "porn"],
-      warning: "conteúdo adulto",
-      note: "Útil para partilhar links com algum enquadramento.",
-    },
-  ]);
   const [linkForm, setLinkForm] = useState({ title: "", url: "", tags: "", warning: "", note: "" });
-  const [provocations, setProvocations] = useState([
-    "Um tipo de mensagem que me deixa curioso/a...",
-    "Uma fantasia que gosto de nomear sem prometer explorar...",
-    "O meu sim mais bonito começa quando...",
-  ]);
   const [provocationDraft, setProvocationDraft] = useState("");
-  const [fantasies, setFantasies] = useState([
-    {
-      id: "fan_1",
-      title: "Lento, vestido, sem pressa",
-      mood: "tensão suave",
-      mode: "quero conversar",
-      limits: "sem surpresa, sem público",
-      aftercare: "mensagem no dia seguinte",
-    },
-    {
-      id: "fan_2",
-      title: "Ser observado/a com consentimento",
-      mood: "voyeur/exibição",
-      mode: "só partilhar",
-      limits: "sem gravação",
-      aftercare: "check-in privado",
-    },
-  ]);
   const [fantasyForm, setFantasyForm] = useState({ title: "", mood: "", mode: "quero conversar", limits: "", aftercare: "" });
-  const [confessions, setConfessions] = useState([
-    {
-      id: "conf_1",
-      signed: false,
-      body: "Às vezes excita-me mais a conversa honesta antes do toque do que o toque em si.",
-      open: true,
-    },
-    {
-      id: "conf_2",
-      signed: true,
-      body: "Quero aprender a flirtar sem me esconder atrás de ironia.",
-      open: false,
-    },
-  ]);
   const [confessionForm, setConfessionForm] = useState({ body: "", signed: false, open: true });
+  const erotecaLinks = nocturnoItems.filter((item) => item.kind === "eroteca");
+  const provocations = nocturnoItems.filter((item) => item.kind === "provocacao");
+  const fantasies = nocturnoItems.filter((item) => item.kind === "fantasia");
+  const confessions = nocturnoItems.filter((item) => item.kind === "confissao");
 
-  function handleErotecaSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleErotecaSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!linkForm.title.trim() || !linkForm.url.trim()) return;
-    setErotecaLinks((current) => [
-      {
-        id: crypto.randomUUID(),
-        title: linkForm.title.trim(),
-        url: linkForm.url.trim(),
-        tags: linkForm.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-        warning: linkForm.warning.trim() || "conteúdo adulto",
-        note: linkForm.note.trim(),
-      },
-      ...current,
-    ]);
-    setLinkForm({ title: "", url: "", tags: "", warning: "", note: "" });
-    showNotice("Link guardado na Eroteca.");
+    const created = await addNocturnoItem({
+      kind: "eroteca",
+      groupId: groups[0]?.id ?? "",
+      visibility: "comunidade",
+      title: linkForm.title,
+      body: linkForm.note,
+      url: linkForm.url,
+      tags: linkForm.tags,
+      warning: linkForm.warning || "conteúdo adulto",
+      mood: "",
+      mode: "",
+      limits: "",
+      aftercare: "",
+      signed: true,
+      openToTalk: true,
+    });
+    if (created) setLinkForm({ title: "", url: "", tags: "", warning: "", note: "" });
   }
 
-  function handleProvocationSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleProvocationSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!provocationDraft.trim()) return;
-    setProvocations((current) => [provocationDraft.trim(), ...current]);
-    setProvocationDraft("");
+    const created = await addNocturnoItem({
+      kind: "provocacao",
+      groupId: groups[0]?.id ?? "",
+      visibility: "comunidade",
+      title: "Provocação",
+      body: provocationDraft,
+      url: "",
+      tags: "provocação,desejo",
+      warning: "",
+      mood: "",
+      mode: "conversa",
+      limits: "",
+      aftercare: "",
+      signed: true,
+      openToTalk: true,
+    });
+    if (created) setProvocationDraft("");
   }
 
-  function handleFantasySubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleFantasySubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!fantasyForm.title.trim()) return;
-    setFantasies((current) => [{ id: crypto.randomUUID(), ...fantasyForm }, ...current]);
-    setFantasyForm({ title: "", mood: "", mode: "quero conversar", limits: "", aftercare: "" });
-    showNotice("Fantasia guardada.");
+    const created = await addNocturnoItem({
+      kind: "fantasia",
+      groupId: groups[0]?.id ?? "",
+      visibility: "conexoes",
+      title: fantasyForm.title,
+      body: fantasyForm.mood,
+      url: "",
+      tags: "fantasia",
+      warning: "conteúdo íntimo",
+      mood: fantasyForm.mood,
+      mode: fantasyForm.mode,
+      limits: fantasyForm.limits,
+      aftercare: fantasyForm.aftercare,
+      signed: true,
+      openToTalk: fantasyForm.mode !== "só partilhar",
+    });
+    if (created) setFantasyForm({ title: "", mood: "", mode: "quero conversar", limits: "", aftercare: "" });
   }
 
-  function handleConfessionSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleConfessionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!confessionForm.body.trim()) return;
-    setConfessions((current) => [{ id: crypto.randomUUID(), ...confessionForm }, ...current]);
-    setConfessionForm({ body: "", signed: false, open: true });
+    const created = await addNocturnoItem({
+      kind: "confissao",
+      groupId: groups[0]?.id ?? "",
+      visibility: "comunidade",
+      title: "Confissão",
+      body: confessionForm.body,
+      url: "",
+      tags: "confissão",
+      warning: "conteúdo íntimo",
+      mood: "",
+      mode: confessionForm.open ? "aberto a conversa" : "só partilha",
+      limits: "",
+      aftercare: "",
+      signed: confessionForm.signed,
+      openToTalk: confessionForm.open,
+    });
+    if (created) setConfessionForm({ body: "", signed: false, open: true });
   }
 
   return (
@@ -5885,10 +7272,15 @@ function NocturnoView({
                   <strong>{link.title}</strong>
                   <span className="small-pill">{link.warning}</span>
                 </header>
-                <p>{link.note}</p>
+                <p>{link.body}</p>
                 <footer>
                   {link.tags.map((tag) => <span key={tag}>{tag}</span>)}
                   <a href={link.url} target="_blank" rel="noreferrer">abrir</a>
+                  {(currentMember.role === "admin" || link.authorId === currentMember.id) && (
+                    <button className="icon-only compact danger" type="button" onClick={() => deleteNocturnoItem(link.id)} title="Eliminar">
+                      <Trash2 size={13} aria-hidden />
+                    </button>
+                  )}
                 </footer>
               </article>
             ))}
@@ -5911,9 +7303,21 @@ function NocturnoView({
           </form>
           <section className="nocturno-card-list">
             {provocations.map((provocation) => (
-              <article className="surface nocturno-card provocation-card" key={provocation}>
-                <Sparkles size={18} aria-hidden />
-                <p>{provocation}</p>
+              <article className="surface nocturno-card provocation-card" key={provocation.id}>
+                <header>
+                  <strong>{provocation.title || "Provocação"}</strong>
+                  <span className="small-pill">{provocation.openToTalk ? "aberto a conversa" : "só leitura"}</span>
+                </header>
+                <p>{provocation.body}</p>
+                <footer>
+                  {provocation.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                  {provocation.mood && <span>{provocation.mood}</span>}
+                </footer>
+                {(currentMember.role === "admin" || provocation.authorId === currentMember.id) && (
+                  <button className="icon-only compact danger" type="button" onClick={() => deleteNocturnoItem(provocation.id)} title="Eliminar">
+                    <Trash2 size={13} aria-hidden />
+                  </button>
+                )}
               </article>
             ))}
           </section>
@@ -5991,6 +7395,11 @@ function NocturnoView({
                   <div><dt>Limites</dt><dd>{fantasy.limits || "por preencher"}</dd></div>
                   <div><dt>Aftercare</dt><dd>{fantasy.aftercare || "por preencher"}</dd></div>
                 </dl>
+                {(currentMember.role === "admin" || fantasy.authorId === currentMember.id) && (
+                  <button className="icon-only compact danger" type="button" onClick={() => deleteNocturnoItem(fantasy.id)} title="Eliminar">
+                    <Trash2 size={13} aria-hidden />
+                  </button>
+                )}
               </article>
             ))}
           </section>
@@ -6022,10 +7431,21 @@ function NocturnoView({
             {confessions.map((confession) => (
               <article className="surface nocturno-card confession-card" key={confession.id}>
                 <header>
-                  <strong>{confession.signed ? currentMember.name : "Anónimo"}</strong>
-                  <span className="small-pill">{confession.open ? "aberto" : "só partilha"}</span>
+                  <strong>{confession.title || "Confissão"}</strong>
+                  <span className="small-pill">{confession.openToTalk ? "aberto" : "só partilha"}</span>
                 </header>
+                <span className="muted-line">
+                  {confession.signed ? memberById.get(confession.authorId ?? "")?.name ?? "Pessoa" : "Anónimo"}
+                </span>
                 <p>{confession.body}</p>
+                <footer>
+                  {confession.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                </footer>
+                {(currentMember.role === "admin" || confession.authorId === currentMember.id) && (
+                  <button className="icon-only compact danger" type="button" onClick={() => deleteNocturnoItem(confession.id)} title="Eliminar">
+                    <Trash2 size={13} aria-hidden />
+                  </button>
+                )}
               </article>
             ))}
           </section>
@@ -8148,6 +9568,8 @@ function ConnectionsView({
   introductions,
   interests,
   relationships,
+  trustEdges,
+  memberBoundaries,
   privacySettings,
   deviceKeys,
   updateIntention,
@@ -8156,6 +9578,8 @@ function ConnectionsView({
   toggleInterest,
   addRelationship,
   deleteRelationship,
+  toggleTrustEdge,
+  setMemberBoundary,
   updatePrivacySettings,
 }: {
   members: Member[];
@@ -8165,6 +9589,8 @@ function ConnectionsView({
   introductions: WarmIntroduction[];
   interests: MutualInterest[];
   relationships: RelationshipLink[];
+  trustEdges: TrustEdge[];
+  memberBoundaries: MemberBoundary[];
   privacySettings: PrivacySettings;
   deviceKeys: DeviceKey[];
   updateIntention: (input: { kinds: IntentionKind[]; note: string }) => Promise<boolean>;
@@ -8177,6 +9603,8 @@ function ConnectionsView({
     visibility: RelationshipVisibility;
   }) => Promise<boolean>;
   deleteRelationship: (relationshipId: string) => Promise<void>;
+  toggleTrustEdge: (input: { targetId: string; kind: TrustEdgeKind; note?: string }) => Promise<void>;
+  setMemberBoundary: (input: { targetId: string; kind: MemberBoundaryKind; reason?: string }) => Promise<void>;
   updatePrivacySettings: (input: PrivacySettings) => Promise<boolean>;
 }) {
   const otherMembers = members.filter((member) => member.id !== currentMember.id);
@@ -8258,10 +9686,15 @@ function ConnectionsView({
       relationship.relatedMemberId === currentMember.id ||
       currentMember.role === "admin",
   );
+  const ownBoundaries = memberBoundaries.filter((boundary) => boundary.actorId === currentMember.id);
+  const blockedByOthers = memberBoundaries.filter(
+    (boundary) => boundary.kind === "block" && boundary.targetId === currentMember.id,
+  );
   const tabs: { id: ConnectionTab; label: string; icon: React.ReactNode }[] = [
     { id: "intencoes", label: "Intenções", icon: <Heart size={15} aria-hidden /> },
     { id: "intros", label: "Intros", icon: <UserPlus size={15} aria-hidden /> },
     { id: "interesses", label: "Interesses", icon: <HeartHandshake size={15} aria-hidden /> },
+    { id: "rede", label: "Rede", icon: <Network size={15} aria-hidden /> },
     { id: "privacidade", label: "Privacidade", icon: <RadioTower size={15} aria-hidden /> },
   ];
 
@@ -8547,6 +9980,107 @@ function ConnectionsView({
             ))}
           </div>
         </form>
+      </section>
+      )}
+
+      {activeTab === "rede" && (
+      <section className="connection-stack">
+        <section className="surface">
+          <SurfaceHeader icon={<Network />} title="Rede de confiança" />
+          <div className="trust-grid">
+            {otherMembers.map((member) => {
+              const memberEdges = trustEdges.filter((edge) => edge.fromId === currentMember.id && edge.toId === member.id);
+              const communityEdges = trustEdges
+                .filter((edge) => edge.fromId === member.id || edge.toId === member.id)
+                .slice(0, 3);
+              const muted = ownBoundaries.some((boundary) => boundary.targetId === member.id && boundary.kind === "mute");
+              const blocked = ownBoundaries.some((boundary) => boundary.targetId === member.id && boundary.kind === "block");
+              return (
+                <article className={blocked ? "connection-card blocked" : "connection-card"} key={member.id}>
+                  <header>
+                    <MemberAvatar member={member} />
+                    <div>
+                      <h3>{member.name}</h3>
+                      <p>{member.relationshipContext || member.mediaPreference || member.pronouns}</p>
+                    </div>
+                  </header>
+                  <div className="mini-actions">
+                    {(["seguir", "confiar", "amigue", "evento"] as TrustEdgeKind[]).map((kind) => {
+                      const active = memberEdges.some((edge) => edge.kind === kind);
+                      return (
+                        <button
+                          key={kind}
+                          className={active ? "secondary-button selected" : "secondary-button"}
+                          type="button"
+                          onClick={() => toggleTrustEdge({ targetId: member.id, kind })}
+                        >
+                          {trustEdgeLabels[kind]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {communityEdges.length > 0 && (
+                    <div className="trust-signal-list" aria-label={`Sinais de confiança para ${member.name}`}>
+                      {communityEdges.map((edge) => (
+                        <span key={edge.id}>
+                          <strong>{trustEdgeLabels[edge.kind]}</strong>{" "}
+                          {memberById.get(edge.fromId)?.name ?? "Pessoa"} → {memberById.get(edge.toId)?.name ?? "Pessoa"}
+                          {edge.note ? ` · ${edge.note}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mini-actions">
+                    <button
+                      className={muted ? "secondary-button selected" : "secondary-button"}
+                      type="button"
+                      onClick={() => setMemberBoundary({ targetId: member.id, kind: "mute", reason: "rede" })}
+                    >
+                      {muted ? "silenciado" : "silenciar"}
+                    </button>
+                    <button
+                      className={blocked ? "secondary-button selected danger-text" : "secondary-button danger-text"}
+                      type="button"
+                      onClick={() => setMemberBoundary({ targetId: member.id, kind: "block", reason: "rede" })}
+                    >
+                      {blocked ? "bloqueado" : "bloquear"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="surface">
+          <SurfaceHeader icon={<EyeOff />} title="Firewall pessoal" />
+          <div className="boundary-list">
+            {ownBoundaries.length === 0 ? (
+              <p className="empty-note">Sem silêncios ou bloqueios activos.</p>
+            ) : (
+              ownBoundaries.map((boundary) => (
+                <article className="relationship-link" key={boundary.id}>
+                  <span>{boundaryLabels[boundary.kind]}</span>
+                  <strong>{memberById.get(boundary.targetId)?.name ?? "Pessoa"}</strong>
+                  <button
+                    className="icon-only compact danger"
+                    type="button"
+                    onClick={() => setMemberBoundary({ targetId: boundary.targetId, kind: boundary.kind })}
+                    title="Remover limite"
+                  >
+                    <X size={13} aria-hidden />
+                  </button>
+                </article>
+              ))
+            )}
+            {blockedByOthers.length > 0 && (
+              <div className="key-trust-alert">
+                <strong>{blockedByOthers.length} bloqueio(s) recebidos</strong>
+                <span>Por privacidade, a app reduz visibilidade mútua sem expor motivos.</span>
+              </div>
+            )}
+          </div>
+        </section>
       </section>
       )}
 
@@ -9861,6 +11395,10 @@ function loadState(): CommunityState {
   }
 }
 
+function loadLanguage(): Language {
+  return localStorage.getItem(languageStoreKey) === "en" ? "en" : "pt";
+}
+
 function isCommunityState(value: unknown): value is CommunityState {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<CommunityState>;
@@ -9895,10 +11433,16 @@ function normalizeCommunityState(state: CommunityState): CommunityState {
     eventRooms: Array.isArray(state.eventRooms) ? state.eventRooms : [],
     decisions: Array.isArray(state.decisions) ? state.decisions : [],
     eventCheckIns: Array.isArray(state.eventCheckIns) ? state.eventCheckIns : [],
+    feedPosts: Array.isArray(state.feedPosts) ? state.feedPosts : seedState.feedPosts,
+    feedComments: Array.isArray(state.feedComments) ? state.feedComments : seedState.feedComments,
+    feedReactions: Array.isArray(state.feedReactions) ? state.feedReactions : seedState.feedReactions,
     intentions: Array.isArray(state.intentions) ? state.intentions : [],
     introductions: Array.isArray(state.introductions) ? state.introductions : [],
     interests: Array.isArray(state.interests) ? state.interests : [],
     relationships: Array.isArray(state.relationships) ? state.relationships : [],
+    trustEdges: Array.isArray(state.trustEdges) ? state.trustEdges : seedState.trustEdges,
+    memberBoundaries: Array.isArray(state.memberBoundaries) ? state.memberBoundaries : [],
+    nocturnoItems: Array.isArray(state.nocturnoItems) ? state.nocturnoItems : seedState.nocturnoItems,
     privacySettings: state.privacySettings ?? seedState.privacySettings,
     reports: Array.isArray(state.reports) ? state.reports : [],
     auditLogs: Array.isArray(state.auditLogs) ? state.auditLogs : [],
@@ -9966,18 +11510,20 @@ function resolveLoginIdentifier(value: string) {
   return aliases[trimmed.toLowerCase()] ?? trimmed;
 }
 
-function navTitle(nav: NavKey) {
-  const titles: Record<NavKey, string> = {
-    hoje: "Hoje",
-    chat: "Chat",
-    agenda: "Agenda",
-    comunidade: "Comunidade",
-    memoria: "Memória",
-    nocturno: "Nocturno",
-    cuidado: "Cuidado",
-    admin: "Admin e moderação",
-  };
-  return titles[nav];
+function navTitle(nav: NavKey, language: Language) {
+  if (nav === "admin") {
+    return language === "en" ? "Admin and moderation" : "Admin e moderação";
+  }
+  return uiCopy[language].nav[nav];
+}
+
+function formatLongDate(value: Date, language: Language) {
+  return new Intl.DateTimeFormat(language === "en" ? "en-GB" : "pt-PT", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(value);
 }
 
 function formatDay(value: string) {
@@ -10117,6 +11663,14 @@ function safeFileName(name: string) {
     .slice(0, 80);
 
   return cleaned || "imagem";
+}
+
+function parseTags(value: string) {
+  return value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, 8);
 }
 
 function fileToDataUrl(file: File) {
