@@ -6093,6 +6093,16 @@ function PublicLanding({
         "A moderação faz parte do produto, não é um remendo.",
       ];
 
+  const scrollLandingTo = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `#${sectionId}`);
+  };
+
+  const scrollLandingTop = () => {
+    document.querySelector(".public-landing")?.scrollTo({ top: 0, behavior: "smooth" });
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  };
+
   return (
     <main className="public-landing">
       <section className="landing-hero">
@@ -6119,13 +6129,29 @@ function PublicLanding({
         </div>
 
         <nav className="landing-nav" aria-label="Landing">
-          <button className="landing-brand" type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+          <button className="landing-brand" type="button" onClick={scrollLandingTop}>
             <span aria-hidden />
             <strong>Porto NM</strong>
           </button>
           <div>
-            <a href="#funcionalidades">{copy.navFeatures}</a>
-            <a href="#seguranca">{copy.navSafety}</a>
+            <a
+              href="#funcionalidades"
+              onClick={(event) => {
+                event.preventDefault();
+                scrollLandingTo("funcionalidades");
+              }}
+            >
+              {copy.navFeatures}
+            </a>
+            <a
+              href="#seguranca"
+              onClick={(event) => {
+                event.preventDefault();
+                scrollLandingTo("seguranca");
+              }}
+            >
+              {copy.navSafety}
+            </a>
             <button type="button" onClick={onToggleLanguage}>
               {copy.language}
             </button>
@@ -6145,7 +6171,14 @@ function PublicLanding({
               {copy.primary}
               <ChevronRight size={18} aria-hidden />
             </button>
-            <a className="landing-secondary" href="#funcionalidades">
+            <a
+              className="landing-secondary"
+              href="#funcionalidades"
+              onClick={(event) => {
+                event.preventDefault();
+                scrollLandingTo("funcionalidades");
+              }}
+            >
               {copy.secondary}
             </a>
           </div>

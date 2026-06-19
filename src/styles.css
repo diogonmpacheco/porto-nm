@@ -6265,9 +6265,15 @@ textarea::placeholder {
 }
 
 .public-landing {
+  height: 100vh;
+  height: 100dvh;
   min-height: 100svh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   color: var(--text);
   background: var(--bg);
+  scroll-behavior: smooth;
 }
 
 .public-landing a {
