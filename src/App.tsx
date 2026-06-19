@@ -2328,10 +2328,16 @@ const seedState: CommunityState = {
   ],
 };
 
+function shouldShowPublicLanding() {
+  if (typeof window === "undefined") return true;
+  return !["#entrar", "#login", "#app"].includes(window.location.hash);
+}
+
 function App() {
   const usingBackend = Boolean(supabase);
   const [state, setState] = useState<CommunityState>(() => loadState());
   const [language, setLanguage] = useState<Language>(() => loadLanguage());
+  const [showPublicLanding, setShowPublicLanding] = useState(() => shouldShowPublicLanding());
   useDocumentTranslations(language);
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
   const [session, setSession] = useState<Session | null>(null);
@@ -2987,6 +2993,13 @@ function App() {
   useEffect(() => {
     localStorage.setItem(languageStoreKey, language);
   }, [language]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const syncLandingRoute = () => setShowPublicLanding(shouldShowPublicLanding());
+    window.addEventListener("hashchange", syncLandingRoute);
+    return () => window.removeEventListener("hashchange", syncLandingRoute);
+  }, []);
 
   useEffect(() => {
     stateRef.current = state;
@@ -5517,11 +5530,23 @@ function App() {
     showNotice(input.mode === "founder" ? "Comunidade criada." : "Entrada concluída.");
   }
 
+  const openAuthFromLanding = () => {
+    setShowPublicLanding(false);
+    if (typeof window !== "undefined" && window.location.hash !== "#entrar") {
+      window.history.pushState(null, "", "#entrar");
+    }
+  };
+
+  const togglePublicLanguage = () => setLanguage((current) => (current === "pt" ? "en" : "pt"));
+
   if (usingBackend && authLoading) {
     return <LoadingScreen label={copy.auth.loading} preparingCopy={copy.auth.preparing} />;
   }
 
   if (usingBackend && !session) {
+    if (showPublicLanding) {
+      return <PublicLanding language={language} onToggleLanguage={togglePublicLanguage} onEnter={openAuthFromLanding} />;
+    }
     return <AuthView copy={copy} />;
   }
 
@@ -5853,6 +5878,328 @@ function LoadingScreen({ label, preparingCopy }: { label: string; preparingCopy:
           </div>
         </div>
         <p>{preparingCopy}</p>
+      </section>
+    </main>
+  );
+}
+
+function PublicLanding({
+  language,
+  onToggleLanguage,
+  onEnter,
+}: {
+  language: Language;
+  onToggleLanguage: () => void;
+  onEnter: () => void;
+}) {
+  const isEnglish = language === "en";
+  const heroFaces = [
+    "/avatars/di.svg",
+    "/avatars/ana.svg",
+    "/avatars/miguel.svg",
+    "/avatars/lia.svg",
+    "/avatars/ines.svg",
+    "/avatars/joao.svg",
+    "/avatars/carolina.svg",
+    "/avatars/rita.svg",
+  ];
+  const copy = isEnglish
+    ? {
+        navFeatures: "Features",
+        navSafety: "Safety",
+        login: "Log in",
+        language: "PT",
+        eyebrow: "Private adult communities, by invitation",
+        title: "Porto NM",
+        lead:
+          "A calm, sensual and consent-first home for non-monogamous communities: chat, events, memory, care and moderation in one private space.",
+        primary: "Enter the app",
+        secondary: "See features",
+        proof: ["Invite + sponsorship", "Encrypted media flows", "Decisions with memory"],
+        previewChat: "Chat",
+        previewMessage: "View-once photo with explicit consent",
+        previewDecision: "Decision",
+        previewDecisionText: "Minutes, votes and citations stay available.",
+        sectionEyebrow: "What it replaces",
+        sectionTitle: "More than a group chat",
+        sectionLead:
+          "WhatsApp is good at flow. Porto NM is designed for the parts that need structure: trust, memory, privacy and care.",
+        safetyTitle: "Private by design, human by default",
+        safetyLead:
+          "The product is built around invitation, visible responsibility, moderation and explicit media consent, so the community can grow without losing its culture.",
+        compareTitle: "Why it feels different",
+        compareLead:
+          "The app keeps the intimacy of a chat, but adds the shared memory and governance that real communities need.",
+        finalTitle: "Ready for the community to try?",
+        finalLead: "Open the private app and continue with the existing login screen.",
+      }
+    : {
+        navFeatures: "Funcionalidades",
+        navSafety: "Segurança",
+        login: "Entrar",
+        language: "EN",
+        eyebrow: "Comunidades adultas, privadas e por convite",
+        title: "Porto NM",
+        lead:
+          "Uma casa digital calma, sensual e centrada em consentimento para comunidades não-monogâmicas: chat, eventos, memória, cuidado e moderação no mesmo espaço privado.",
+        primary: "Entrar na app",
+        secondary: "Ver funcionalidades",
+        proof: ["Convite + apadrinhamento", "Media com fluxos cifrados", "Decisões com memória"],
+        previewChat: "Chat",
+        previewMessage: "Foto de ver uma vez com consentimento explícito",
+        previewDecision: "Decisão",
+        previewDecisionText: "Ata, votos e citações ficam sempre disponíveis.",
+        sectionEyebrow: "O que substitui",
+        sectionTitle: "Mais do que um grupo de conversa",
+        sectionLead:
+          "O WhatsApp é bom para fluxo. O Porto NM foi desenhado para o que precisa de estrutura: confiança, memória, privacidade e cuidado.",
+        safetyTitle: "Privado por desenho, humano por defeito",
+        safetyLead:
+          "O produto nasce com convite, responsabilidade visível, moderação e consentimento explícito para media, para a comunidade crescer sem perder cultura.",
+        compareTitle: "Porque se sente diferente",
+        compareLead:
+          "Mantém a intimidade de um chat, mas acrescenta a memória e a governação de que comunidades reais precisam.",
+        finalTitle: "Pronto para a comunidade testar?",
+        finalLead: "Abre a app privada e continua no ecrã de login existente.",
+      };
+
+  const features = isEnglish
+    ? [
+        {
+          icon: <MessageCircle aria-hidden />,
+          title: "Chat",
+          body: "Rooms for daily conversation, encrypted device delivery, media upload and view-once images with consent.",
+        },
+        {
+          icon: <CalendarDays aria-hidden />,
+          title: "Events",
+          body: "Stable calendar, check-ins, attendee lists, temporary event rooms and clear photo policies.",
+        },
+        {
+          icon: <Users aria-hidden />,
+          title: "Community",
+          body: "Profiles, subgroups, warm introductions, connection privacy and sponsorship links for every invited person.",
+        },
+        {
+          icon: <BookOpenText aria-hidden />,
+          title: "Memory",
+          body: "Documents, decisions, votes, minutes and citations that can be referenced later with community context.",
+        },
+        {
+          icon: <Sparkles aria-hidden />,
+          title: "Nocturnal",
+          body: "Eroteca, provocations, fantasies, confession space and private peer-to-peer video rooms for consenting people.",
+        },
+        {
+          icon: <HeartHandshake aria-hidden />,
+          title: "Care",
+          body: "Jealousy lab, repair notes, sexual health resources and mediation tools for hard conversations.",
+        },
+        {
+          icon: <ShieldCheck aria-hidden />,
+          title: "Admin",
+          body: "Moderation overview, reports, invites, member status, audit trail and community health signals.",
+        },
+        {
+          icon: <RadioTower aria-hidden />,
+          title: "P2P ready",
+          body: "WebRTC direct delivery for media and video, with relay mode only when explicitly needed.",
+        },
+      ]
+    : [
+        {
+          icon: <MessageCircle aria-hidden />,
+          title: "Chat",
+          body: "Salas para conversa diária, entrega cifrada por dispositivo, upload de media e imagens de ver uma vez com consentimento.",
+        },
+        {
+          icon: <CalendarDays aria-hidden />,
+          title: "Agenda",
+          body: "Calendário estável, check-ins, listas de presença, salas temporárias por evento e políticas de fotografia claras.",
+        },
+        {
+          icon: <Users aria-hidden />,
+          title: "Comunidade",
+          body: "Perfis, subgrupos, apresentações quentes, privacidade de conexões e apadrinhamento ligado a cada convite.",
+        },
+        {
+          icon: <BookOpenText aria-hidden />,
+          title: "Memória",
+          body: "Documentos, decisões, votos, atas e citações que podem ser recuperados mais tarde com contexto.",
+        },
+        {
+          icon: <Sparkles aria-hidden />,
+          title: "Nocturno",
+          body: "Eroteca, provocações, fantasias, confessionário e salas privadas de vídeo P2P para pessoas que consentem.",
+        },
+        {
+          icon: <HeartHandshake aria-hidden />,
+          title: "Cuidado",
+          body: "Laboratório de ciúme, reparação, saúde sexual e ferramentas de mediação para conversas difíceis.",
+        },
+        {
+          icon: <ShieldCheck aria-hidden />,
+          title: "Admin",
+          body: "Visão de moderação, denúncias, convites, estados de membros, histórico de ações e sinais de saúde da comunidade.",
+        },
+        {
+          icon: <RadioTower aria-hidden />,
+          title: "Pronto para P2P",
+          body: "Entrega direta por WebRTC para media e vídeo, com relay apenas quando for explicitamente necessário.",
+        },
+      ];
+
+  const safetyPoints = isEnglish
+    ? [
+        "Invite-only entry with visible sponsor links.",
+        "Profiles, boundaries and connection settings controlled by each member.",
+        "Admin tools for reports, suspensions and community oversight.",
+        "Encrypted media flows, view-once images and private video rooms.",
+      ]
+    : [
+        "Entrada por convite com vínculo visível a quem apadrinha.",
+        "Perfis, limites e privacidade de conexões controlados por cada pessoa.",
+        "Ferramentas de admin para denúncias, suspensões e visão geral da comunidade.",
+        "Fluxos de media cifrados, imagens de ver uma vez e salas privadas de vídeo.",
+      ];
+
+  const differences = isEnglish
+    ? [
+        "Decisions do not disappear in the scroll.",
+        "Events have context before, during and after.",
+        "Desire has spaces with consent and boundaries.",
+        "Moderation is part of the product, not an afterthought.",
+      ]
+    : [
+        "As decisões não desaparecem no fluxo.",
+        "Os eventos têm contexto antes, durante e depois.",
+        "O desejo tem espaços próprios, com consentimento e limites.",
+        "A moderação faz parte do produto, não é um remendo.",
+      ];
+
+  return (
+    <main className="public-landing">
+      <section className="landing-hero">
+        <div className="landing-hero-art" aria-hidden>
+          <div className="landing-face-cloud">
+            {heroFaces.map((face, index) => (
+              <img className={`landing-face face-${index + 1}`} src={face} alt="" key={face} />
+            ))}
+          </div>
+          <div className="landing-preview landing-preview-chat">
+            <span>{copy.previewChat}</span>
+            <strong>{copy.previewMessage}</strong>
+            <div>
+              <Eye size={13} />
+              <LockKeyhole size={13} />
+              <Wifi size={13} />
+            </div>
+          </div>
+          <div className="landing-preview landing-preview-decision">
+            <span>{copy.previewDecision}</span>
+            <strong>{copy.previewDecisionText}</strong>
+            <Vote size={18} />
+          </div>
+        </div>
+
+        <nav className="landing-nav" aria-label="Landing">
+          <button className="landing-brand" type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+            <span aria-hidden />
+            <strong>Porto NM</strong>
+          </button>
+          <div>
+            <a href="#funcionalidades">{copy.navFeatures}</a>
+            <a href="#seguranca">{copy.navSafety}</a>
+            <button type="button" onClick={onToggleLanguage}>
+              {copy.language}
+            </button>
+            <button className="landing-login" type="button" onClick={onEnter}>
+              {copy.login}
+              <ChevronRight size={16} aria-hidden />
+            </button>
+          </div>
+        </nav>
+
+        <div className="landing-hero-content">
+          <span className="landing-eyebrow">{copy.eyebrow}</span>
+          <h1>{copy.title}</h1>
+          <p>{copy.lead}</p>
+          <div className="landing-cta-row">
+            <button className="landing-primary" type="button" onClick={onEnter}>
+              {copy.primary}
+              <ChevronRight size={18} aria-hidden />
+            </button>
+            <a className="landing-secondary" href="#funcionalidades">
+              {copy.secondary}
+            </a>
+          </div>
+          <div className="landing-proof-strip" aria-label={isEnglish ? "Highlights" : "Destaques"}>
+            {copy.proof.map((item) => (
+              <span key={item}>
+                <Check size={14} aria-hidden />
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="landing-intro" id="funcionalidades">
+        <div className="landing-section-copy">
+          <span className="landing-eyebrow">{copy.sectionEyebrow}</span>
+          <h2>{copy.sectionTitle}</h2>
+          <p>{copy.sectionLead}</p>
+        </div>
+        <div className="landing-feature-grid">
+          {features.map((feature) => (
+            <article className="landing-feature-card" key={feature.title}>
+              <div>{feature.icon}</div>
+              <h3>{feature.title}</h3>
+              <p>{feature.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="landing-band" id="seguranca">
+        <div className="landing-band-copy">
+          <span className="landing-eyebrow">{isEnglish ? "Trust" : "Confiança"}</span>
+          <h2>{copy.safetyTitle}</h2>
+          <p>{copy.safetyLead}</p>
+        </div>
+        <div className="landing-safety-list">
+          {safetyPoints.map((point) => (
+            <span key={point}>
+              <ShieldCheck size={16} aria-hidden />
+              {point}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      <section className="landing-compare">
+        <div className="landing-section-copy">
+          <span className="landing-eyebrow">{isEnglish ? "Positioning" : "Posicionamento"}</span>
+          <h2>{copy.compareTitle}</h2>
+          <p>{copy.compareLead}</p>
+        </div>
+        <div className="landing-difference-list">
+          {differences.map((difference) => (
+            <article key={difference}>
+              <CircleDot size={17} aria-hidden />
+              <p>{difference}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="landing-final">
+        <h2>{copy.finalTitle}</h2>
+        <p>{copy.finalLead}</p>
+        <button className="landing-primary" type="button" onClick={onEnter}>
+          {copy.primary}
+          <ChevronRight size={18} aria-hidden />
+        </button>
       </section>
     </main>
   );
