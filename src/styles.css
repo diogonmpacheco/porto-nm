@@ -6627,7 +6627,7 @@ textarea::placeholder {
 
 .landing-feature-card {
   display: grid;
-  min-height: 218px;
+  min-height: 292px;
   gap: 12px;
   align-content: start;
   padding: 16px;
@@ -6668,6 +6668,28 @@ textarea::placeholder {
   color: var(--text-muted);
   font-size: 14px;
   line-height: 1.48;
+}
+
+.landing-feature-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-self: end;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-feature-list li {
+  min-height: 24px;
+  padding: 4px 8px;
+  color: var(--text);
+  background: rgba(18, 10, 14, 0.34);
+  border: 1px solid rgba(244, 231, 225, 0.11);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.25;
 }
 
 .landing-band {

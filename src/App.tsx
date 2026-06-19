@@ -5969,41 +5969,49 @@ function PublicLanding({
           icon: <MessageCircle aria-hidden />,
           title: "Chat",
           body: "Rooms for daily conversation, encrypted device delivery, media upload and view-once images with consent.",
+          details: ["Group rooms", "Citations with @", "Encrypted media", "View once"],
         },
         {
           icon: <CalendarDays aria-hidden />,
           title: "Events",
           body: "Stable calendar, check-ins, attendee lists, temporary event rooms and clear photo policies.",
+          details: ["RSVPs", "Photo policy", "Check-ins", "Event rooms"],
         },
         {
           icon: <Users aria-hidden />,
           title: "Community",
           body: "Profiles, subgroups, warm introductions, connection privacy and sponsorship links for every invited person.",
+          details: ["Editable profiles", "Subgroups", "Sponsorship", "Private connections"],
         },
         {
           icon: <BookOpenText aria-hidden />,
           title: "Memory",
           body: "Documents, decisions, votes, minutes and citations that can be referenced later with community context.",
+          details: ["Documents", "Decisions", "Votes", "Reusable citations"],
         },
         {
           icon: <Sparkles aria-hidden />,
           title: "Nocturnal",
           body: "Eroteca, provocations, fantasies, confession space and private peer-to-peer video rooms for consenting people.",
+          details: ["Eroteca", "Provocations", "Fantasies", "P2P video"],
         },
         {
           icon: <HeartHandshake aria-hidden />,
           title: "Care",
           body: "Jealousy lab, repair notes, sexual health resources and mediation tools for hard conversations.",
+          details: ["Jealousy lab", "Repair notes", "Sexual health", "Mediation"],
         },
         {
           icon: <ShieldCheck aria-hidden />,
           title: "Admin",
           body: "Moderation overview, reports, invites, member status, audit trail and community health signals.",
+          details: ["Reports", "Invites", "Roles", "Audit trail"],
         },
         {
           icon: <RadioTower aria-hidden />,
           title: "P2P ready",
           body: "WebRTC direct delivery for media and video, with relay mode only when explicitly needed.",
+          details: ["Direct delivery", "Device keys", "Relay option", "No storage by default"],
         },
       ]
     : [
@@ -6011,41 +6019,49 @@ function PublicLanding({
           icon: <MessageCircle aria-hidden />,
           title: "Chat",
           body: "Salas para conversa diária, entrega cifrada por dispositivo, upload de media e imagens de ver uma vez com consentimento.",
+          details: ["Salas por grupo", "Citações com @", "Media cifrada", "Ver uma vez"],
         },
         {
           icon: <CalendarDays aria-hidden />,
           title: "Agenda",
           body: "Calendário estável, check-ins, listas de presença, salas temporárias por evento e políticas de fotografia claras.",
+          details: ["Presenças", "Política de fotos", "Check-ins", "Salas de evento"],
         },
         {
           icon: <Users aria-hidden />,
           title: "Comunidade",
           body: "Perfis, subgrupos, apresentações quentes, privacidade de conexões e apadrinhamento ligado a cada convite.",
+          details: ["Perfis editáveis", "Subgrupos", "Apadrinhamento", "Conexões privadas"],
         },
         {
           icon: <BookOpenText aria-hidden />,
           title: "Memória",
           body: "Documentos, decisões, votos, atas e citações que podem ser recuperados mais tarde com contexto.",
+          details: ["Documentos", "Decisões", "Votos", "Citações reutilizáveis"],
         },
         {
           icon: <Sparkles aria-hidden />,
           title: "Nocturno",
           body: "Eroteca, provocações, fantasias, confessionário e salas privadas de vídeo P2P para pessoas que consentem.",
+          details: ["Eroteca", "Provocações", "Fantasias", "Vídeo P2P"],
         },
         {
           icon: <HeartHandshake aria-hidden />,
           title: "Cuidado",
           body: "Laboratório de ciúme, reparação, saúde sexual e ferramentas de mediação para conversas difíceis.",
+          details: ["Laboratório de ciúme", "Reparação", "Saúde sexual", "Mediação"],
         },
         {
           icon: <ShieldCheck aria-hidden />,
           title: "Admin",
           body: "Visão de moderação, denúncias, convites, estados de membros, histórico de ações e sinais de saúde da comunidade.",
+          details: ["Denúncias", "Convites", "Papéis", "Auditoria"],
         },
         {
           icon: <RadioTower aria-hidden />,
           title: "Pronto para P2P",
           body: "Entrega direta por WebRTC para media e vídeo, com relay apenas quando for explicitamente necessário.",
+          details: ["Entrega direta", "Chaves por dispositivo", "Relay opcional", "Sem arquivo por defeito"],
         },
       ];
 
@@ -6156,6 +6172,11 @@ function PublicLanding({
               <div>{feature.icon}</div>
               <h3>{feature.title}</h3>
               <p>{feature.body}</p>
+              <ul className="landing-feature-list">
+                {feature.details.map((detail) => (
+                  <li key={detail}>{detail}</li>
+                ))}
+              </ul>
             </article>
           ))}
         </div>
